@@ -1,14 +1,17 @@
-import aiosqlite
 from typing import List
 from decimal import Decimal
-from models import Portfolio, Position
-from schemas import PortfolioOut, PositionOut
+from data.models import Portfolio, Position
+from data.schemas import PortfolioOut, PositionOut
 from clients.stock_client import StockClient
+from supabase import Client
+from typing import Optional
+from datetime import datetime
 
 
 class PortfolioRepo:
-    def __init__(self):
-        self.stock_client = StockClient()
+    def __init__(self, stock_client: Optional[StockClient] = None, db_client: Optional[Client] = None):
+        self.stock_client = stock_client or StockClient()
+        self.db_client = db_client
 
     def _get_enriched_position(self, position: Position, current_price: Decimal) -> PositionOut:
         """포지션별 실시간 계산 필드들 계산 (현재가, 시장가치, 미실현 손익, 미실현 손익 비율)
@@ -46,27 +49,21 @@ class PortfolioRepo:
             Portfolio | None: 포트폴리오 모델
         """
         try:
-            async with aiosqlite.connect("porta.db") as db:
-                cursor = await db.execute(
-                    """
-                    SELECT id, user_id, base_currency, cash, updated_at
-                    FROM portfolios WHERE user_id = ?
-                    """,
-                    (user_id,),
+            if not self.db_client:
+                raise ValueError("DB client not initialized")
+
+            response = self.db_client.table("portfolios").select("*").eq("user_id", user_id).single().execute()
+            if response.data:
+                data = response.data
+                return Portfolio(
+                    id=data["id"],
+                    user_id=data["user_id"],
+                    base_currency=data["base_currency"],
+                    cash=Decimal(str(data["cash"])),
+                    updated_at=datetime.fromisoformat(data["updated_at"].replace(" ", "T")),
                 )
-                row = await cursor.fetchone()
+            return None
 
-                if row:
-                    from datetime import datetime
-
-                    return Portfolio(
-                        id=row[0],
-                        user_id=row[1],
-                        base_currency=row[2],
-                        cash=Decimal(str(row[3])),
-                        updated_at=datetime.fromisoformat(row[4].replace(" ", "T")),
-                    )
-                return None
         except Exception as e:
             print(f"Error fetching portfolio for user {user_id}: {e}")
             return None
@@ -81,33 +78,28 @@ class PortfolioRepo:
             List[Position]: List of Position
         """
         try:
-            async with aiosqlite.connect("porta.db") as db:
-                cursor = await db.execute(
-                    """
-                    SELECT id, portfolio_id, ticker, total_shares, avg_buy_price, updated_at
-                    FROM positions
-                    WHERE portfolio_id = ? AND total_shares > 0
-                    ORDER BY ticker
-                    """,
-                    (portfolio_id,),
-                )
-                rows = await cursor.fetchall()
 
-                positions = []
-                for row in rows:
-                    positions.append(
-                        Position(
-                            id=row[0],
-                            portfolio_id=row[1],
-                            ticker=row[2],
-                            total_shares=Decimal(str(row[3])),
-                            avg_buy_price=Decimal(str(row[4])),
-                            updated_at=row[5],
-                        )
+            if not self.db_client:
+                raise ValueError("DB client not initialized")
+
+            response = self.db_client.table("positions").select("*").eq("portfolio_id", portfolio_id).execute()
+            if response.data:
+                data = response.data
+                return [
+                    Position(
+                        id=p["id"],
+                        portfolio_id=p["portfolio_id"],
+                        ticker=p["ticker"],
+                        total_shares=Decimal(str(p["total_shares"])),
+                        avg_buy_price=Decimal(str(p["avg_buy_price"])),
+                        updated_at=datetime.fromisoformat(p["updated_at"].replace(" ", "T")),
                     )
-                return positions
+                    for p in data
+                ]
+            return []
+
         except Exception as e:
-            print(f"Error fetching positions: {e}")
+            print(f"Error fetching positions for portfolio {portfolio_id}: {e}")
             return []
 
     async def get_current_portfolio(self, user_id: int = 1) -> PortfolioOut:
