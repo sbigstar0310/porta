@@ -122,16 +122,11 @@ if ! uv sync --quiet; then
 fi
 
 # 환경변수 파일 확인
-if [[ -f ".env" ]]; then
+if [[ -f "../.env" ]]; then
     log_info ".env 파일을 발견했습니다."
-    export $(grep -v '^#' .env | xargs)
+    export $(grep -v '^#' ../.env | xargs)
 else
     log_warning ".env 파일을 찾을 수 없습니다. 기본 설정을 사용합니다."
-fi
-
-# 데이터베이스 초기화 (필요시)
-if [[ ! -f "db.pt" ]]; then
-    log_info "데이터베이스를 초기화합니다..."
 fi
 
 # 서버 시작
@@ -154,7 +149,7 @@ if [[ "$MODE" == "dev" ]]; then
     echo ""
     
     # 개발 모드 실행 (uvicorn 직접 사용)
-    uv run uvicorn app:app --host "$HOST" --port "$PORT" $RELOAD_FLAG --log-level info
+    uv run uvicorn app:app --host "$HOST" --port "$PORT" $RELOAD_FLAG --log-level debug
 else
     log_success "프로덕션 서버를 시작합니다..."
     log_info "서버 주소: http://$HOST:$PORT"
