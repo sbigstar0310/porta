@@ -18,8 +18,18 @@ class UserCreate(BaseModel):
     """사용자 생성 스키마"""
 
     email: Optional[str] = None
+    password: Optional[str] = None
     timezone: str = Field(default="Asia/Seoul", max_length=50, description="IANA timezone (예: Asia/Seoul)")
     language: str = Field(default="ko", min_length=2, max_length=2, description="ISO 639-1 언어 코드")
+
+    @field_validator("password")
+    @classmethod
+    def _validate_password(cls, v):
+        if v is None:
+            return v
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        return v
 
     @field_validator("timezone")
     @classmethod

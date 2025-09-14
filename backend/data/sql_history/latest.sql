@@ -3,12 +3,11 @@
 --==================================================================================================
 
 -- 확장/설정 (필요 시)
--- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- users -----------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
     id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    uuid         UUID NOT NULL DEFAULT uuid_generate_v4(),
     email        VARCHAR(255) UNIQUE,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -16,6 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
     timezone     VARCHAR(50)  NOT NULL DEFAULT 'UTC',
     language     VARCHAR(2)   NOT NULL DEFAULT 'en'
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS uuid UUID NOT NULL DEFAULT uuid_generate_v4();
 
 -- portfolios ------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS portfolios (
@@ -44,8 +45,9 @@ CREATE TABLE IF NOT EXISTS transactions (
     exchange         VARCHAR(50) NOT NULL DEFAULT '',
     notes            TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT
-
+    CONSTRAINT fk_transaction_portfolio
+        FOREIGN KEY (portfolio_id) REFERENCES portfolios(id) ON DELETE CASCADE
+);
 -- Functions -------------------------------------------------------------------
 
 -- updated_at 자동 갱신용 함수 (portfolios)
@@ -60,9 +62,10 @@ END;
 $$;
 
 -- auth.users -> public.users 자동 업데이트 함수
-CREATE OR REPLACE FUNCTION handle_new_user()
+CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+security definer set search_path = ''
 AS $$
 BEGIN
   insert into public.users (uuid, email)
@@ -75,21 +78,11 @@ $$;
 -- Triggers -------------------------------------------------------------------
 DO $$
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_trigger WHERE tgname = 'portfolio_updated_at'
-    ) THEN
-        CREATE TRIGGER portfolio_updated_at
-        BEFORE UPDATE ON portfolios
-        FOR EACH ROW
-        EXECUTE FUNCTION set_portfolio_updated_at();
-    END IF;
+    create trigger portfolio_updated_at
+    BEFORE UPDATE ON portfolios
+    FOR EACH ROW EXECUTE FUNCTION set_portfolio_updated_at();
 
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_trigger WHERE tgname = 'handle_new_user'
-    ) THEN
-        CREATE TRIGGER handle_new_user
-        AFTER INSERT ON auth.users
-        FOR EACH ROW
-        EXECUTE FUNCTION handle_new_user();
-    END IF;
+    create trigger on_auth_user_created
+    after insert on auth.users
+    for each row execute procedure public.handle_new_user();
 END $$;
