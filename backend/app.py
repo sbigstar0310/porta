@@ -7,6 +7,8 @@ from data.db import Database
 from routers.portfolio import router as portfolio_router
 from routers.health import router as health_router
 from routers.user import router as user_router
+from routers.auth import router as auth_router
+from routers.agent import router as agent_router
 import logging
 import colorlog
 
@@ -73,3 +75,5 @@ app = FastAPI(title="PORTA", lifespan=lifespan)
 app.include_router(portfolio_router)
 app.include_router(health_router)
 app.include_router(user_router)
+app.include_router(auth_router)
+app.include_router(agent_router)
