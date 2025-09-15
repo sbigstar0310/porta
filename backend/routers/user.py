@@ -55,11 +55,3 @@ def create_user(user_data: UserCreate, user_usecase: UserUsecase = Depends(get_u
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="사용자 생성에 실패했습니다.")
 
     return UserOut(**user.model_dump())
-
-
-@router.post("/login")
-def login(email: str, password: str, user_usecase: UserUsecase = Depends(get_user_usecase)) -> UserOut:
-    user = user_usecase.login(email=email, password=password)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="로그인에 실패했습니다.")
-    return UserOut(**user.model_dump())
