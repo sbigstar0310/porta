@@ -44,6 +44,10 @@ class RiskState(BaseModel):
     momo_score: List[Dict[str, Any]]
     fund_score: List[Dict[str, Any]]
     risk_note: RiskNote | None = None
+    risk_end: bool = False
+    momo_end: bool = False
+    fund_end: bool = False
+    review_end: bool = False
 
 
 class RiskOutput(BaseModel):

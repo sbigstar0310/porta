@@ -5,6 +5,7 @@ from .schema import ReviewerState, ReviewerOutput
 from jinja2 import Template
 from ...tools.db_data import get_portfolio_history
 from ...tools.stock_data import get_benchmark_data
+from langchain_core.runnables.config import RunnableConfig
 
 
 def load_system_prompt():
@@ -21,7 +22,7 @@ REVIEWER_SYSTEM_PROMPT = load_system_prompt()
 def build_reviewer_graph(llm_client):
     """LLM 클라이언트를 주입받는 reviewer graph 빌더"""
 
-    def agent_wrapper(state: ReviewerState) -> dict:
+    def agent_wrapper(state: ReviewerState, *, config: RunnableConfig | None = None, **kwargs) -> dict:
         # tools 정의 - 포트폴리오 기록과 벤치마크 데이터 가져오기
         tools = [get_portfolio_history, get_benchmark_data]
 
@@ -48,7 +49,7 @@ def build_reviewer_graph(llm_client):
             prompt=prompt,
             response_format=ReviewerOutput,
         )
-        out = agent.invoke(messages=[], input=state)
+        out = agent.invoke(messages=[], input=state, config=config)
 
         # structured_response에서 실제 결과 추출
         if "structured_response" in out and out["structured_response"]:
@@ -84,4 +85,4 @@ def adapt_parent_to_reviewer_in(parent) -> ReviewerState:
 def adapt_reviewer_to_parent_out(sub_out: ReviewerState) -> dict:
     review_note = sub_out.get("review_note", {})
     review_note = review_note.model_dump()
-    return {"review_note": review_note}
+    return {"review_note": review_note, "review_end": True}

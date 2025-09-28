@@ -1,17 +1,22 @@
-from typing import List
+from typing import List, Optional
 from decimal import Decimal
 from data.models import Portfolio, Position
-from data.schemas import PortfolioOut, PositionOut
+from data.schemas import PortfolioOut, PortfolioPatch, PositionOut, PortfolioCreate
 from clients.stock_client import StockClient
 from supabase import Client
-from typing import Optional
-from datetime import datetime
+from dateutil import parser as date_parser
+from .base_repo import BaseRepo
+import logging
 
 
-class PortfolioRepo:
-    def __init__(self, stock_client: Optional[StockClient] = None, db_client: Optional[Client] = None):
+logger = logging.getLogger(__name__)
+
+
+class PortfolioRepo(BaseRepo):
+    def __init__(self, stock_client: StockClient, db_client: Client, table_name: str = "portfolios"):
+        super().__init__(db_client, table_name)
         self.stock_client = stock_client or StockClient()
-        self.db_client = db_client
+
 
     def _get_enriched_position(self, position: Position, current_price: Decimal) -> PositionOut:
         """포지션별 실시간 계산 필드들 계산 (현재가, 시장가치, 미실현 손익, 미실현 손익 비율)
@@ -52,7 +57,7 @@ class PortfolioRepo:
             if not self.db_client:
                 raise ValueError("DB client not initialized")
 
-            response = self.db_client.table("portfolios").select("*").eq("user_id", user_id).single().execute()
+            response = self.db_client.table(self.table_name).select("*").eq("user_id", user_id).single().execute()
             if response.data:
                 data = response.data
                 return Portfolio(
@@ -60,12 +65,13 @@ class PortfolioRepo:
                     user_id=data["user_id"],
                     base_currency=data["base_currency"],
                     cash=Decimal(str(data["cash"])),
-                    updated_at=datetime.fromisoformat(data["updated_at"].replace(" ", "T")),
+                    updated_at=date_parser.parse(data["updated_at"]),
+
                 )
             return None
 
         except Exception as e:
-            print(f"Error fetching portfolio for user {user_id}: {e}")
+            logger.error(f"Error fetching portfolio for user {user_id}: {e}")
             return None
 
     async def get_portfolio_positions(self, portfolio_id: int = 1) -> List[Position]:
@@ -92,17 +98,18 @@ class PortfolioRepo:
                         ticker=p["ticker"],
                         total_shares=Decimal(str(p["total_shares"])),
                         avg_buy_price=Decimal(str(p["avg_buy_price"])),
-                        updated_at=datetime.fromisoformat(p["updated_at"].replace(" ", "T")),
+                        updated_at=date_parser.parse(p["updated_at"]),
+
                     )
                     for p in data
                 ]
             return []
 
         except Exception as e:
-            print(f"Error fetching positions for portfolio {portfolio_id}: {e}")
+            logger.error(f"Error fetching positions for portfolio {portfolio_id}: {e}")
             return []
 
-    async def get_current_portfolio(self, user_id: int = 1) -> PortfolioOut:
+    async def get_by_user_id(self, user_id: int = 1) -> Optional[PortfolioOut]:
         """
         현재 포트폴리오 완전한 정보 조회
 
@@ -116,7 +123,8 @@ class PortfolioRepo:
             # get portfolio basic info
             portfolio_basic = await self.get_portfolio_by_user(user_id)
             if not portfolio_basic:
-                raise ValueError(f"Portfolio not found for user {user_id}")
+                logger.warning(f"Portfolio not found for user {user_id}")
+                return None
 
             # get portfolio positions
             portfolio_id = portfolio_basic.id
@@ -166,5 +174,85 @@ class PortfolioRepo:
                 total_unrealized_pnl_pct=total_unrealized_pnl_pct,
             )
 
+        except Exception as e:
+            raise e
+
+    async def get_by_id(self, portfolio_id: int) -> PortfolioOut:
+        """
+        포트폴리오 정보 조회
+        """
+        try:
+            response = self.db_client.table(self.table_name).select("*").eq("id", portfolio_id).single().execute()
+            if response.data:
+                return PortfolioOut(**response.data)
+            return None
+        except Exception as e:
+            raise e
+
+    async def create(self, schema: PortfolioCreate) -> PortfolioOut:
+        """
+        포트폴리오 생성
+        """
+        try:
+            response = self.db_client.table(self.table_name).insert(schema.model_dump(mode="json")).execute()
+            if response.data and len(response.data) > 0:
+                created_portfolio = PortfolioOut(**response.data[0])
+                return created_portfolio
+            else:
+                logger.error(f"포트폴리오 생성 실패: 응답 데이터가 없습니다. response: {response}")
+                raise ValueError("포트폴리오 생성 실패: 응답 데이터가 없습니다")
+        except Exception as e:
+            logger.error(f"포트폴리오 생성 중 예외 발생: {e}")
+            raise e
+
+    async def update_by_user_id(self, user_id: int, schema: PortfolioPatch) -> PortfolioOut:
+        """
+        포트폴리오 정보 업데이트
+
+        Args:
+            user_id: 사용자 ID
+            schema: 포트폴리오 정보
+        """
+        try:
+            if not self.db_client:
+                raise ValueError("DB client not initialized")
+
+            response = (
+                self.db_client.table(self.table_name)
+                .update(schema.model_dump(mode="json", exclude_none=True))
+                .eq("user_id", user_id)
+                .execute()
+            )
+            data = response.data[0]
+            if data:
+                logger.info(f"Updated portfolio: {data}")
+                return PortfolioOut(**data)
+            return None
+        except Exception as e:
+            raise e
+
+    async def update(self, schema: PortfolioPatch) -> PortfolioOut:
+        """
+        포트폴리오 정보 업데이트
+        """
+        try:
+            response = (
+                self.db_client.table(self.table_name)
+                .update(schema.model_dump(mode="json", exclude_none=True))
+                .eq("id", schema.id)
+                .single()
+                .execute()
+            )
+            return PortfolioOut(**response.data)
+        except Exception as e:
+            raise e
+
+    async def delete_by_id(self, portfolio_id: int) -> bool:
+        """
+        포트폴리오 정보 삭제
+        """
+        try:
+            response = self.db_client.table(self.table_name).delete().eq("id", portfolio_id).execute()
+            return len(response.data) > 0
         except Exception as e:
             raise e

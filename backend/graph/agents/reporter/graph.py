@@ -1,9 +1,41 @@
 # agents/reporter/graph.py
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import create_react_agent
-from .schema import ReporterOutput, ReporterState
+from .schema import ReporterState
 from jinja2 import Template
-from ...tools.stock_data import get_stock_data
+from langchain_core.runnables.config import RunnableConfig
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _last_ai_text(agent_out) -> str:
+    logger.info(f"agent_out: {agent_out}")
+    print(f"agent_out: {agent_out}")
+
+    # agent_out이 dict이고 messages 키가 있는 경우
+    if isinstance(agent_out, dict) and "messages" in agent_out:
+        messages = agent_out["messages"]
+        if messages:
+            # 마지막 메시지가 AIMessage인 경우
+            last_message = messages[-1]
+            if hasattr(last_message, "content"):
+                return last_message.content
+
+    # 기존 로직 (generations) - 하위 호환성을 위해 유지
+    if hasattr(agent_out, "generations"):
+        generations = agent_out.get("generations", [])
+
+        # get first generation output from generations
+        first_generation = generations[0]
+        if isinstance(first_generation, list):
+            first_generation = first_generation[0]
+
+        # get text from first generation
+        if getattr(first_generation, "text", None):
+            return first_generation.text
+
+    raise ValueError("No AI text found in agent output")
 
 
 def load_system_prompt():
@@ -20,9 +52,9 @@ REPORTER_SYSTEM_PROMPT = load_system_prompt()
 def build_reporter_graph(llm_client):
     """LLM 클라이언트를 주입받는 reporter graph 빌더"""
 
-    def agent_wrapper(state: ReporterState) -> dict:
+    def agent_wrapper(state: ReporterState, *, config: RunnableConfig | None = None, **kwargs) -> dict:
         # tools 정의
-        tools = [get_stock_data]
+        tools = []
 
         # state가 dict인지 Pydantic 모델인지 확인하고 안전하게 접근
         if isinstance(state, dict):
@@ -34,8 +66,9 @@ def build_reporter_graph(llm_client):
             fund_score = state.get("fund_score", {})
             review_note = state.get("review_note", {})
             risk_note = state.get("risk_note", {})
-            final_portfolio = state.get("final_portfolio", {})
+            final_portfolio = state.get("final_portfolio", None)
             language = state.get("language", "ko")
+            decider_end = state.get("decider_end", False)
         else:
             # Pydantic 모델인 경우
             asof = getattr(state, "asof", "")
@@ -46,8 +79,13 @@ def build_reporter_graph(llm_client):
             fund_score = getattr(state, "fund_score", {})
             review_note = getattr(state, "review_note", {})
             risk_note = getattr(state, "risk_note", {})
-            final_portfolio = getattr(state, "final_portfolio", {})
+            final_portfolio = getattr(state, "final_portfolio", None)
             language = getattr(state, "language", "ko")
+            decider_end = getattr(state, "decider_end", False)
+
+        # 이전 에이전트가 끝나지 않았으면 아무 것도 하지 않음
+        if not decider_end:
+            return {}
 
         # 프롬프트 렌더링
         prompt = REPORTER_SYSTEM_PROMPT.render(
@@ -69,21 +107,13 @@ def build_reporter_graph(llm_client):
             tools=tools,
             name="reporter",
             prompt=prompt,
-            response_format=ReporterOutput,
+            response_format=None,
         )
-        out = agent.invoke(messages=[], input=state)
+        out = agent.invoke(messages=[], input=state, config=config)
 
-        # structured_response에서 실제 결과 추출
-        if "structured_response" in out and out["structured_response"]:
-            structured_response = out["structured_response"]
-            return {
-                "report_md": structured_response.report_md,
-            }
-        else:
-            # 폴백: 빈 결과 반환
-            return {
-                "report_md": {},
-            }
+        return {
+            "report_md": _last_ai_text(out),
+        }
 
     g = StateGraph(ReporterState)
     g.add_node("REPORTER", agent_wrapper)
@@ -103,11 +133,20 @@ def adapt_parent_to_reporter_in(parent) -> ReporterState:
         "fund_score": parent.get("fund_score", {}),
         "review_note": parent.get("review_note", {}),
         "risk_note": parent.get("risk_note", {}),
-        "final_portfolio": parent.get("final_portfolio", {}),
+        "final_portfolio": parent.get("final_portfolio", None),
         "language": parent.get("language", "ko"),
+        "decider_end": parent.get("decider_end", False),
     }
 
 
 def adapt_reporter_to_parent_out(sub_out: ReporterState) -> dict:
-    report_md = sub_out.get("report_md", "")
-    return {"report_md": report_md}
+    if isinstance(sub_out, dict):
+        report_md = sub_out.get("report_md", None)
+    else:
+        report_md = getattr(sub_out, "report_md", None)
+
+    # 유효 값이 없으면 downstream 트리거를 만들지 않음
+    if not report_md:
+        return {}
+
+    return {"report_md": report_md, "reporter_end": True}

@@ -2,7 +2,7 @@
 from typing import TypedDict, List, Dict, Any
 from typing_extensions import Annotated
 from langgraph.graph.message import add_messages
-from schemas import PortfolioOut
+from data.schemas import PortfolioOut
 
 
 class ParentState(TypedDict, total=False):
@@ -10,10 +10,19 @@ class ParentState(TypedDict, total=False):
     messages: Annotated[List[Dict[str, Any]], add_messages]
 
     # 입력
+    asof: str  # 데이터 기준시각
     portfolio: PortfolioOut  # 현재 보유자산/현금 등
     universe: List[str]  # 현재 보유 티커들
-    asof: str  # 데이터 기준시각
+    user_id: int  # 유저 ID
     language: str  # 유저 언어 설정 추가
+
+    # End of Agents
+    review_end: bool = False
+    momo_end: bool = False
+    fund_end: bool = False
+    risk_end: bool = False
+    decider_end: bool = False
+    reporter_end: bool = False
 
     # Result of Agents
     new_candidates: List[Dict[str, Any]] = []  # Crawler에서 발견한 신규 후보

@@ -1,52 +1,65 @@
-import aiosqlite
 from typing import List
 from datetime import datetime, timedelta
-from decimal import Decimal
+from supabase import Client
+import logging
 
-from models import Transaction
+from data.schemas import TransactionOut, TransactionCreate
+from data.models import Transaction
+from .base_repo import BaseRepo
+
+logger = logging.getLogger(__name__)
 
 
-class TransactionRepo:
-    def __init__(self):
-        pass
+class TransactionRepo(BaseRepo):
+    def __init__(self, db_client: Client, table_name: str = "transactions"):
+        super().__init__(db_client, table_name)
+
+    async def get_by_id(self, id: int, **kwargs) -> TransactionOut:
+        response = self.db_client.table(self.table_name).select("*").eq("id", id).single().execute()
+        if response.data:
+            data = response.data
+            return TransactionOut(**data)
+        return None
+
+    async def create(self, schema: TransactionCreate) -> TransactionOut:
+        response = self.db_client.table(self.table_name).insert(schema.model_dump(mode="json")).execute()
+        if response.data:
+            data = response.data[0]
+            return TransactionOut(**data)
+        return None
+
+    async def update(self, id: int, schema: TransactionCreate) -> TransactionOut:
+        response = self.db_client.table(self.table_name).update(schema.model_dump(mode="json")).eq("id", id).execute()
+        if response.data:
+            data = response.data
+            return TransactionOut(**data)
+        return None
+
+    async def delete_by_id(self, id: int) -> bool:
+        response = self.db_client.table(self.table_name).delete().eq("id", id).execute()
+        return len(response.data) > 0
 
     async def get_recent_transactions(self, portfolio_id: int = 1, days: int = 7) -> List[Transaction]:
         """DB에서 최근 거래 기록 조회"""
         try:
             cutoff_date = (datetime.utcnow() - timedelta(days=days)).date()
 
-            async with aiosqlite.connect("porta.db") as db:
-                cursor = await db.execute(
-                    """
-                    SELECT id, portfolio_id, ticker, transaction_type, shares, price,
-                        transaction_date, fee, currency, exchange, notes, created_at
-                    FROM transactions
-                    WHERE portfolio_id = ? AND transaction_date >= ?
-                    ORDER BY transaction_date DESC, created_at DESC
-                    """,
-                    (portfolio_id, cutoff_date),
-                )
-                rows = await cursor.fetchall()
+            if not self.db_client:
+                raise ValueError("DB client not initialized")
 
-                transactions = []
-                for row in rows:
-                    transactions.append(
-                        Transaction(
-                            id=row[0],
-                            portfolio_id=row[1],
-                            ticker=row[2],
-                            transaction_type=row[3],
-                            shares=Decimal(str(row[4])),
-                            price=Decimal(str(row[5])),
-                            transaction_date=row[6],
-                            fee=Decimal(str(row[7])),
-                            currency=row[8],
-                            exchange=row[9],
-                            notes=row[10],
-                            created_at=row[11],
-                        )
-                    )
-                return transactions
+            response = (
+                self.db_client.table(self.table_name)
+                .select("*")
+                .eq("portfolio_id", portfolio_id)
+                .gte("transaction_date", cutoff_date)
+                .order("transaction_date", desc=True)
+                .execute()
+            )
+            if response.data:
+                data = response.data
+                return [Transaction(**row) for row in data]
+            return []
+
         except Exception as e:
-            print(f"Error fetching transactions: {e}")
+            logger.error(f"Error fetching transactions: {e}")
             return []

@@ -3,7 +3,11 @@
 Multi-agent pipeline 테스트 스크립트
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
+from repo import get_portfolio_repo
+from data.schemas import PortfolioOut
+from graph.schemas import ParentState
+from graph.root_graph import build_root_graph
 from graph.agents.reporter.schema import ReporterState
 from graph.agents.decider.schema import DeciderState
 from graph.agents.risk.schema import RiskState
@@ -11,11 +15,6 @@ from graph.agents.reviewer.schema import ReviewerState
 from graph.agents.fund.schema import FundState
 from graph.agents.momo.schema import MomoState
 from graph.agents.crawler.schema import CrawlerState
-from graph.root_graph import build_root_graph
-from graph.schemas import ParentState
-
-from repo.portfolio_repo import PortfolioRepo
-from schemas import PortfolioOut
 
 
 def test_individual_agent(llm_client, agent_name):
@@ -1393,6 +1392,7 @@ def test_individual_agent(llm_client, agent_name):
                     "total_unrealized_pnl": 884.2670937645997,
                     "total_unrealized_pnl_pct": 33.49,
                 },
+                decider_end=True,
             )
             graph = build_reporter_graph(llm_client)
     except Exception as e:
@@ -1423,12 +1423,13 @@ def test_pipeline(llm_client):
     """
 
     # 테스트 입력 데이터
-    portfolio: PortfolioOut = asyncio.run(PortfolioRepo().get_current_portfolio(user_id=1))
+    portfolio_repo = get_portfolio_repo()
+    portfolio: PortfolioOut = asyncio.run(portfolio_repo.get_by_user_id(user_id=3))
     initial_state: ParentState = ParentState(
         messages=[],
-        portfolio=portfolio.model_dump(),
+        portfolio=portfolio,
         universe=[pos.ticker for pos in portfolio.positions],
-        asof=datetime.utcnow().isoformat(),
+        asof=datetime.now(timezone.utc).isoformat(),
         language="ko",
     )
 
@@ -1442,7 +1443,12 @@ def test_pipeline(llm_client):
         print(f"🤖 LLM Client: {llm_client}")
 
         # 그래프 빌드
-        graph = build_root_graph(llm_client)
+        graph = build_root_graph(
+            light_llm_client=llm_client,
+            middle_llm_client=llm_client,
+            heavy_llm_client=llm_client,
+            base_llm_client=llm_client,
+        )
         print("✅ 그래프 빌드 성공")
 
         # 파이프라인 실행
@@ -1522,10 +1528,10 @@ if __name__ == "__main__":
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
     # 데이터베이스 초기화
-    from db import init_database
+    from data.db import Database
 
     print("🔧 데이터베이스 초기화 중...")
-    asyncio.run(init_database())
+    asyncio.run(Database.initialize())
     print("✅ 데이터베이스 초기화 완료")
 
     # .env 로드 후에 LLM 클라이언트 임포트
@@ -1545,8 +1551,8 @@ if __name__ == "__main__":
         test_individual_agent(llm_client_mini, agent_name=agent_name)
     for agent_name in [
         # "decider",
-        # "reporter",
+        "reporter",
     ]:
         test_individual_agent(llm_client_mini, agent_name=agent_name)
 
-    test_pipeline(llm_client_mini)
+    # test_pipeline(llm_client_mini)

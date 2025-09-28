@@ -1,7 +1,8 @@
 # agents/reporter/schema.py
 from typing import List, Dict, Any
 from pydantic import BaseModel
-from schemas import PortfolioOut
+from data.schemas import PortfolioOut
+from typing import Optional
 
 
 class ReporterState(BaseModel):
@@ -13,9 +14,10 @@ class ReporterState(BaseModel):
     fund_score: List[Dict[str, Any]]
     review_note: Dict[str, Any]
     risk_note: Dict[str, Any]
-    final_portfolio: PortfolioOut
+    final_portfolio: Optional[PortfolioOut] = None
     language: str = "ko"
     report_md: str | None = None
+    decider_end: bool = False
 
 
 class ReporterOutput(BaseModel):

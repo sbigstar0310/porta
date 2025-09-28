@@ -5,6 +5,7 @@ from .schema import DeciderState, DeciderOutput
 from jinja2 import Template
 from ...tools.db_data import get_current_portfolio
 from ...tools.stock_data import get_stock_data
+from langchain_core.runnables.config import RunnableConfig
 
 
 def load_system_prompt():
@@ -21,7 +22,7 @@ DECIDER_SYSTEM_PROMPT = load_system_prompt()
 def build_decider_graph(llm_client):
     """LLM 클라이언트를 주입받는 decider graph 빌더"""
 
-    def agent_wrapper(state: DeciderState) -> dict:
+    def agent_wrapper(state: DeciderState, *, config: RunnableConfig | None = None, **kwargs) -> dict:
         # tools 정의
         tools = [get_current_portfolio, get_stock_data]
 
@@ -34,6 +35,7 @@ def build_decider_graph(llm_client):
             fund_score = state.get("fund_score", {})
             review_note = state.get("review_note", {})
             risk_note = state.get("risk_note", {})
+            risk_end = state.get("risk_end", False)
         else:
             # Pydantic 모델인 경우
             universe = getattr(state, "universe", [])
@@ -43,6 +45,11 @@ def build_decider_graph(llm_client):
             fund_score = getattr(state, "fund_score", {})
             review_note = getattr(state, "review_note", {})
             risk_note = getattr(state, "risk_note", {})
+            risk_end = getattr(state, "risk_end", False)
+
+        # 이전 에이전트가 끝나지 않았으면 아무 것도 하지 않음
+        if not risk_end:
+            return {}
 
         # 프롬프트 렌더링
         prompt = DECIDER_SYSTEM_PROMPT.render(
@@ -63,7 +70,7 @@ def build_decider_graph(llm_client):
             prompt=prompt,
             response_format=DeciderOutput,
         )
-        out = agent.invoke(messages=[], input=state)
+        out = agent.invoke(messages=[], input=state, config=config)
 
         # structured_response에서 실제 결과 추출
         if "structured_response" in out and out["structured_response"]:
@@ -102,15 +109,30 @@ def adapt_parent_to_decider_in(parent) -> DeciderState:
         "review_note": parent.get("review_note", {}),
         "risk_note": parent.get("risk_note", {}),
         "asof": parent.get("asof"),
+        "risk_end": parent.get("risk_end", False),
     }
 
 
 def adapt_decider_to_parent_out(sub_out: DeciderState) -> dict:
-    decisions = sub_out.get("decisions", [])
-    final_portfolio = sub_out.get("final_portfolio", {})
+    if isinstance(sub_out, dict):
+        decisions = sub_out.get("decisions", None)
+        final_portfolio = sub_out.get("final_portfolio", None)
+    else:
+        decisions = getattr(sub_out, "decisions", None)
+        final_portfolio = getattr(sub_out, "final_portfolio", None)
+
+    # 유효 값이 없으면 downstream 트리거를 만들지 않음
+    if not decisions and not final_portfolio:
+        return {}
+
     decisions = [d.model_dump() for d in decisions]
-    final_portfolio = final_portfolio.model_dump()
+    if final_portfolio and hasattr(final_portfolio, "model_dump"):
+        final_portfolio = final_portfolio.model_dump()
+    else:
+        final_portfolio = None
+
     return {
         "decisions": decisions,
         "final_portfolio": final_portfolio,
+        "decider_end": True,
     }
