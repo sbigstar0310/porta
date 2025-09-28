@@ -138,7 +138,7 @@ flutter run
 ---
 
 ## 4. 시스템 아키텍처
-[]()
+<img width="1998" height="1034" alt="Image" src="https://github.com/user-attachments/assets/2c84a1fc-8a7b-4166-a073-21ca80534782" />
 
 ---
 
