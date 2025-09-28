@@ -216,11 +216,9 @@ class _AgentScreenState extends State<AgentScreen>
                 child: OutlinedButton.icon(
                   onPressed: canCancel
                       ? () {
-                          if (state is AgentRunning) {
-                            context.read<AgentBloc>().add(
-                              AgentTaskCancelRequested(state.taskId),
-                            );
-                          }
+                          context.read<AgentBloc>().add(
+                            AgentTaskCancelRequested(state.taskId),
+                          );
                         }
                       : null,
                   icon: const Icon(Icons.stop),
