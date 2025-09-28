@@ -21,6 +21,7 @@ class User(BaseModel):
     """사용자 테이블 모델 (users)"""
 
     id: int
+    uuid: Optional[str] = None
     email: Optional[str] = None
     timezone: str = Field(default="Asia/Seoul", max_length=50)
     language: str = Field(default="ko", min_length=2, max_length=2)

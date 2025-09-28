@@ -1,6 +1,10 @@
 # app.py
 from graph.root_graph import build_root_graph
 import os
+from schemas import ParentState
+from datetime import datetime
+from data.schemas import PortfolioOut
+from llm_clients.openai_client import get_openai_client
 
 
 def activate_langsmith():
@@ -8,23 +12,42 @@ def activate_langsmith():
     os.environ["LANGCHAIN_PROJECT"] = "porta"
 
 
-def run_graph(sample_input: dict | None = None):
+def run_graph(portfolio: PortfolioOut) -> dict:
+    """
+    Porta Agent Pipeline 실행
+
+    Args:
+        portfolio: PortfolioOut
+
+    Returns:
+        dict: 파이프라인 결과
+    """
     # activate langsmith
     activate_langsmith()
 
-    app = build_root_graph()
-    # 샘플 입력
-    init = sample_input or {
-        "portfolio": {"cash": 10000, "positions": {"AAPL": 1.2}},
-        "universe": ["AAPL", "NVDA", "TSLA"],
-        "asof": "2025-09-06T08:00:00Z",
-        "messages": [],
-        # CRAWLER가 만든 값을 미리 넣어도 되고, 없으면 crawler가 생성
-        # "crawl_prices": {"AAPL": {...}, ...}
-    }
-    out = app.invoke(init)
+    # llm client
+    llm_client = get_openai_client()
+
+    # build root graph
+    app = build_root_graph(llm_client)
+
+    # initial state
+    initial_state: ParentState = ParentState(
+        messages=[],
+        portfolio=portfolio.model_dump(),
+        universe=[pos.ticker for pos in portfolio.positions],
+        asof=datetime.utcnow().isoformat(),
+        language="ko",
+    )
+
+    # invoke pipeline
+    out = app.invoke(initial_state)
+
     print("=== DECISIONS ===")
     for d in out.get("decisions", []):
         print(d)
+
     print("\n=== REPORT ===")
     print(out.get("report_md", ""))
+
+    return out
