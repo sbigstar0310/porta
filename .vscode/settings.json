@@ -8,5 +8,6 @@
   "flake8.args": [
     "--max-line-length=120"
     //   "--extend-ignore=E203,W503,E501,F403,F401"
-  ]
+  ],
+  "cmake.ignoreCMakeListsMissing": true
 }

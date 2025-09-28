@@ -10,5 +10,6 @@ class SupabaseClient:
             raise ValueError(f"Missing Supabase config: URL={bool(url)}, KEY={bool(key)}")
         self.client: Client = create_client(url, key)
 
+
     def get_client(self) -> Client:
         return self.client

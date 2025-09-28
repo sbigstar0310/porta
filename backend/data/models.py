@@ -26,6 +26,7 @@ class User(BaseModel):
     timezone: str = Field(default="Asia/Seoul", max_length=50)
     language: str = Field(default="ko", min_length=2, max_length=2)
     email_verified: bool = Field(default=False, description="이메일 인증 완료 여부")
+
     created_at: datetime
     updated_at: datetime
     last_login: datetime

@@ -15,14 +15,11 @@
 
 **흐름도**
 
-1. START → (**Crawler Agent**, **Reviewer Agent**)
-   1.1. Crawler Agent → (Momo Agent, Fund Agent)
-   1.2. Reviewer Agent → Risk Manager Agent
-   2.1. Momo Agent → Risk Manager Agent
-   2.2. Fund Agent → Risk Manager Agent
-2. Risk Manager Agent → Decider Agent
-3. Decider Agent → Reporter Agent
-4. Reporter Agent → END
+1. START → (**Crawler Agent**, **Reviewer Agent**) [병렬]
+   - Crawler Agent → (**Momo Agent**, **Fund Agent**) [병렬]
+   - (**Momo Agent**, **Fund Agent**, **Reviewer Agent**) → **Risk Manager Agent**
+     - RISK는 MOMO/FUND/REVIEWER가 모두 완료될 때까지 대기 (게이트)
+   - Risk Manager Agent → Decider Agent → Reporter Agent → END
 
 ---
 
@@ -50,7 +47,7 @@
   - $s = 0.5 \times trend + 0.3 \times vol\_conf + 0.3 \times pattern - 0.2 \times vol\_penalty$
   - $momo\_score = \lfloor 100 \times \sigma(0.7 \times s) \rfloor$
 - **입력**: 전종목 메타 + 뉴스 피드 + 단기 가격 시계열
-- **출력**: `scores[ticker] = { MOMO, features, norm, data_confidence }`
+- **출력**: `momo_score: MomoItem[]` (각 항목: `ticker`, `score = { MOMO, features, norm, data_confidence }`)
 
 ### 4. Fund Agent
 
@@ -65,6 +62,7 @@
 - **결합식**: `FUND_SCORE = 0.3V + 0.3G + 0.25Q + 0.15E`
 - **라벨링**: `Strong ≥70 / Neutral 50–70 / Weak <50`
 - **결측치**: 섹터 중앙값 대체 + `data_confidence` 플래그
+- **출력**: `fund_score: FundItem[]` (각 항목: `ticker`, `FUND`, `scores={V,G,Q,E}`, `label`, `insights`, `data_confidence`)
 
 ### 5. Risk Manager Agent
 
@@ -86,11 +84,16 @@
 - **결합식**:
   `TOTAL = (0.55 + δ)·MOMO + (0.45 − δ)·FUND`
   (δ: Reviewer 조정, 범위 ±0.05)
-- **룰**
+- **룰 (업데이트)**
 
-  - BUY: `TOTAL ≥ 70` & Risk 제약 충족
-  - HOLD: `50 ≤ TOTAL < 70` 또는 제약으로 증액 불가
-  - TRIM/SELL: `TOTAL < 45` 또는 제약 초과
+  - 기존 보유 종목(유니버스):
+    - BUY/ADD: `TOTAL ≥ 65` 그리고 리스크 제약 충족
+    - HOLD: `45 ≤ TOTAL < 65` 또는 제약으로 변경 불가
+    - TRIM: `40 ≤ TOTAL < 45` 또는 일부 제약 초과
+    - SELL: `TOTAL < 40` 또는 주요 리스크 플래그
+  - 신규 후보(보유 아님):
+    - BUY Only: `TOTAL ≥ 65` 그리고 리스크 제약 충족
+    - No Action: `TOTAL < 65` 또는 제약 위반
 
 ### 7. Reporter Agent
 
@@ -103,6 +106,8 @@
   - 주의 이벤트 (어닝, 매크로 일정)
   - 법적 고지 및 데이터 기준시각
 
+- **언어 지시**: 입력 `language` 값에 따라 전체 리포트를 한국어("ko") 또는 영어("en")로 생성 (기본 한국어)
+- **포맷 규칙**: 내부 컴포넌트/도구명은 리포트에 노출하지 않음
 - **출처 표기**: 가격, 재무, 뉴스 소스
 
 ---
@@ -179,66 +184,68 @@
 }
 ```
 
-**Momo Agent 출력**
+**Momo Agent 출력 (업데이트: 리스트 스키마)**
 
 ```json
 {
   "version": "1.0",
   "asof": "UTC ISO8601",
-  "momo_score": {
-    "AAPL": {
-      "MOMO": 63,
-      "features": {
-        "r20": 0.062,  # 최근 20일 수익률 (단기)
-        "r60": 0.118,  # 최근 60일 수익률 (장기)
-        "ma_cross": 1, # 이동평균선 교차 여부
-        "breakout": true,  # 돌파 여부
-        "vol_surge": 1.8,  # 거래량 급증 비율
-        "atr_pct_14": 0.032  # 14일간 변동성 비율
-      },
-      "norm": {
-        "z20": 0.7,
-        "z60": 0.9,
-        "zvol": 0.8
-      },
-      "data_confidence": "high"
+  "momo_score": [
+    {
+      "ticker": "AAPL",
+      "score": {
+        "MOMO": 63,
+        "features": {
+          "r20": 0.062,
+          "r60": 0.118,
+          "ma_cross": true,
+          "breakout": true,
+          "vol_surge": 1.8,
+          "atr_pct_14": 0.032
+        },
+        "norm": {
+          "z20": 0.7,
+          "z60": 0.9,
+          "zvol": 0.8
+        },
+        "data_confidence": "high"
+      }
     },
-    "TSLA": {
-      "MOMO": 72,
-      "features": {
-        "r20": 0.104,
-        "r60": 0.155,
-        "ma_cross": 1,
-        "breakout": true,
-        "vol_surge": 2.5,
-        "atr_pct_14": 0.075
-      },
-      "norm": {
-        "z20": 1.2,
-        "z60": 1.1,
-        "zvol": 1.4
-      },
-      "data_confidence": "medium" // 결측 대체/이상치 클립 등
+    {
+      "ticker": "TSLA",
+      "score": {
+        "MOMO": 72,
+        "features": {
+          "r20": 0.104,
+          "r60": 0.155,
+          "ma_cross": true,
+          "breakout": true,
+          "vol_surge": 2.5,
+          "atr_pct_14": 0.075
+        },
+        "norm": {
+          "z20": 1.2,
+          "z60": 1.1,
+          "zvol": 1.4
+        },
+        "data_confidence": "medium"
+      }
     }
-  }
+  ]
 }
 ```
 
-**Fund Agent 출력**
+**Fund Agent 출력 (업데이트: 리스트 스키마)**
 
 ```json
 {
   "version": "1.0",
   "asof": "2025-09-06T08:30:00Z",
-  "scores": {
-    "AAPL": {
+  "fund_score": [
+    {
+      "ticker": "AAPL",
       "FUND": 68,
-      "scores": {
-        "V": 62,
-        "G": 71,
-        "Q": 78,
-        "E": 55
-      },
+      "scores": { "V": 62, "G": 71, "Q": 78, "E": 55 },
       "label": "Neutral",
       "insights": [
         "EPS YoY +18% (섹터 상위권)",
@@ -247,14 +254,10 @@
       ],
       "data_confidence": "high"
     },
-    "TSLA": {
+    {
+      "ticker": "TSLA",
       "FUND": 45,
-      "scores": {
-        "V": 40,
-        "G": 60,
-        "Q": 35,
-        "E": 50
-      },
+      "scores": { "V": 40, "G": 60, "Q": 35, "E": 50 },
       "label": "Weak",
       "insights": [
         "밸류에이션 과열 (PER 70+)",
@@ -263,208 +266,164 @@
       ],
       "data_confidence": "medium"
     }
-  }
-}
-```
-
-**Risk Manager 출력**
-
-```json
-{
-  "asof": "2025-09-06T08:30:00Z",
-  "per_ticker": {
-    "AAPL": {
-      "allowed": true,
-      "max_weight_pct": 6.5,
-      "beta": 1.2,
-      "atr_pct": 3.2,
-      "notes": ["liquidity ok", "vol normal"]
-    },
-    "TSLA": {
-      "allowed": true,
-      "max_weight_pct": 3.0,
-      "beta": 1.8,
-      "atr_pct": 2.4,
-      "notes": ["high volatility", "earnings T-2d (no_add)"]
-    },
-    "PLTR": {
-      "allowed": false,
-      "max_weight_pct": 0.0,
-      "beta": 0.2,
-      "atr_pct": 3.2,
-      "notes": ["ADV < $5M: insufficient liquidity"]
-    }
-  },
-  "portfolio_limits": {
-    "single_stock_cap": 15,
-    "sector_caps": { "Tech": 35 },
-    "cash_floor": 5
-  },
-  "portfolio_warnings": [
-    { "type": "sector_cap", "sector": "Tech", "actual": 42, "limit": 35 }
   ]
 }
 ```
 
-**Decider 출력**
+**Risk Manager 출력 (업데이트: 리스트 스키마 + 게이트 동작)**
 
 ```json
 {
-  "portfolio_before": {
-    "summary_view": [
+  "risk_note": {
+    "per_ticker": [
       {
         "ticker": "AAPL",
-        "shares": 8.0,
-        "avg_buy_price": 205.0,
-        "current_price": 227.4,
-        "total_value": 1819.2,
-        "unrealized_pnl_pct": 10.9
+        "allowed": true,
+        "max_weight_pct": 6.5,
+        "beta": 1.2,
+        "atr_pct": 3.2,
+        "notes": ["liquidity ok", "vol normal"]
       },
       {
-        "ticker": "MSFT",
-        "shares": 3.0,
-        "avg_buy_price": 390.0,
-        "current_price": 415.9,
-        "total_value": 1247.7,
-        "unrealized_pnl_pct": 6.6
-      }
-    ],
-    "lot_details": [
+        "ticker": "TSLA",
+        "allowed": true,
+        "max_weight_pct": 3.0,
+        "beta": 1.8,
+        "atr_pct": 2.4,
+        "notes": ["high volatility", "earnings T-2d (no_add)"]
+      },
       {
-        "ticker": "AAPL",
-        "lots": [
-          {
-            "buy_date": "2025-08-01",
-            "shares": 5.0,
-            "buy_price": 200.0,
-            "current_price": 227.4,
-            "value": 1137.0,
-            "pnl_pct": 13.7
-          },
-          {
-            "buy_date": "2025-08-15",
-            "shares": 3.0,
-            "buy_price": 210.0,
-            "current_price": 227.4,
-            "value": 682.2,
-            "pnl_pct": 8.4
-          }
-        ]
+        "ticker": "PLTR",
+        "allowed": false,
+        "max_weight_pct": 0.0,
+        "beta": 0.2,
+        "atr_pct": 3.2,
+        "notes": ["ADV < $5M: insufficient liquidity"]
       }
     ],
-    "cash_value": 2000.0,
-    "portfolio_value": 5000.0
-  },
+    "portfolio_limits": {
+      "single_stock_cap": 15.0,
+      "sector_caps": [{ "sector": "Tech", "cap": 35.0 }],
+      "cash_floor": 5.0
+    },
+    "portfolio_warnings": [
+      {
+        "type": "sector_concentration",
+        "sector": "Tech",
+        "actual": 42.0,
+        "limit": 35.0
+      }
+    ],
+    "overall_note": "Portfolio exhibits moderate risk profile."
+  }
+}
+```
 
+**Decider 출력 (업데이트: 의사결정/최종 포트폴리오 중심)**
+
+```json
+{
   "actions": [
     {
       "ticker": "AAPL",
       "action": "BUY",
+      "target_weight_pct": 8.5,
+      "current_weight_pct": 6.0,
       "shares_to_trade": 2.5,
       "trade_value": 568.5,
-      "reason": "MOMO 상승 + FUND 안정적"
+      "total_score": 72,
+      "momo_score": 68,
+      "fund_score": 75,
+      "reason": "Strong combined signals (72/100), within risk limit",
+      "risk_notes": ["Volatility normal"]
     },
     {
       "ticker": "TSLA",
-      "action": "SELL",
-      "shares_to_trade": 1.0,
-      "trade_value": 245.0,
-      "reason": "리스크 경고 + 추세 하락"
+      "action": "TRIM",
+      "target_weight_pct": 3.0,
+      "current_weight_pct": 8.0,
+      "shares_to_trade": -2.1,
+      "trade_value": -420.0,
+      "total_score": 48,
+      "momo_score": 55,
+      "fund_score": 42,
+      "reason": "Below hold threshold, reducing overweight position",
+      "risk_notes": ["High volatility", "Sector overweight"]
     },
     {
       "ticker": "MSFT",
       "action": "HOLD",
       "shares_to_trade": 0,
       "trade_value": 0,
-      "reason": "펀더멘털 강세지만 추가 매수 제한"
+      "total_score": 73,
+      "momo_score": 72,
+      "fund_score": 75,
+      "reason": "Maintain solid position",
+      "risk_notes": []
     }
   ],
-
-  "portfolio_after": {
-    "summary_view": [
+  "final_portfolio": {
+    "id": 1,
+    "user_id": 1,
+    "base_currency": "USD",
+    "cash": "1686.50",
+    "updated_at": "2025-01-20T10:30:00Z",
+    "positions": [
       {
+        "id": 1,
+        "portfolio_id": 1,
         "ticker": "AAPL",
-        "shares": 10.5,
+        "total_shares": 10.5,
         "avg_buy_price": 207.1,
+        "updated_at": "2025-01-20T09:30:00Z",
         "current_price": 227.4,
-        "total_value": 2387.7,
+        "current_market_value": 2387.7,
+        "unrealized_pnl": 160.12,
         "unrealized_pnl_pct": 8.4
-      },
-      {
-        "ticker": "MSFT",
-        "shares": 3.0,
-        "avg_buy_price": 390.0,
-        "current_price": 415.9,
-        "total_value": 1247.7,
-        "unrealized_pnl_pct": 6.6
       }
     ],
-    "cash_value": 1686.5,
-    "portfolio_value": 5321.9
-  },
-
-  "explanations": [
-    "AAPL은 모멘텀 지표가 강세로 전환되어 추가 매수",
-    "TSLA는 변동성 리스크가 커서 전량 매도 권고",
-    "MSFT는 안정적 펀더멘털 유지, 현 수준 보유"
-  ]
+    "total_stock_value": 3635.4,
+    "total_value": 5321.9,
+    "total_unrealized_pnl": 160.12,
+    "total_unrealized_pnl_pct": 10.15
+  }
 }
 ```
 
-**Reporter 출력**
+**Reporter 출력 (업데이트: 언어/템플릿 규칙 적용)**
 
 ```markdown
-# Portfolio Analysis Report
+# 포트폴리오 분석 리포트 / Portfolio Analysis Report
 
-_Generated: 2025-01-20T10:30:00Z_
+_생성일시 / Generated: 2025-01-20T10:30:00Z_
 
-## TL;DR
+## 요약 / TL;DR
 
-- Added NVDA position (5%) based on strong momentum signals
-- Increased AAPL allocation to 8.5% on combined strength
-- Maintained MSFT position with solid fundamentals
-- Current strategy slightly favors momentum (adjustment: +0.02)
-- No significant risk warnings
+<!-- 5줄 요약: 핵심 결정사항, 주요 변화, 리스크 경고 -->
 
-## Portfolio Changes
+## 포트폴리오 변경사항 / Portfolio Changes
 
-| Action | Ticker | Target Weight | Current Weight | Rationale                      |
-| ------ | ------ | ------------- | -------------- | ------------------------------ |
-| BUY    | NVDA   | 5.0%          | 0.0%           | High momentum score, AI growth |
-| BUY    | AAPL   | 8.5%          | 6.0%           | Strong combined signals        |
-| HOLD   | MSFT   | 10.0%         | 10.0%          | Maintain solid position        |
+| 액션/Action | 티커/Ticker | 목표비중/Target % | 현재비중/Current % | 근거/Rationale |
+| ----------- | ----------- | ----------------- | ------------------ | -------------- |
 
-## Stock Analysis
+## 종목 분석 / Stock Analysis
 
-### NVDA - BUY
+### [TICKER] - [BUY/HOLD/SELL/TRIM]
 
-- **Combined Score**: 78/100 (Momentum: 85, Fundamental: 65)
-- **Decision**: BUY new position at 5% weight
-- **Rationale**: Exceptional momentum driven by AI datacenter demand
-- **Risk Notes**: High volatility (6.5% ATR), position size limited
+- **종합점수/Combined Score**: XX/100 (모멘텀/Momentum: XX, 펀더멘털/Fundamental: XX)
+- **결정/Decision**: [action]
+- **근거/Rationale**: [specific quantitative reasons]
+- **리스크/Risk Notes**: [relevant warnings]
 
-### AAPL - BUY
+## 시장 전망 및 전략 / Market Outlook & Strategy
 
-- **Combined Score**: 72/100 (Momentum: 68, Fundamental: 68)
-- **Decision**: Increase position to 8.5%
-- **Rationale**: Balanced strength across momentum and fundamentals
-- **Risk Notes**: Normal volatility profile
+- 리뷰어 인사이트 및 비중 조정 / Reviewer insights and weight adjustments
+- 리스크 환경 평가 / Risk environment assessment
+- 다음 주기 고려사항 / Next period considerations
 
-### MSFT - HOLD
+## 면책사항 / Legal Disclaimer
 
-- **Combined Score**: 73/100 (Momentum: 72, Fundamental: 75)
-- **Decision**: Maintain current 10% allocation
-- **Rationale**: Strong fundamentals, cloud growth continues
-- **Risk Notes**: Stable, low-risk holding
+본 보고서는 정보 제공 목적으로만 작성되었으며, 투자 권유나 조언이 아닙니다. / This report is for informational purposes only and does not constitute investment advice.
 
-## Market Outlook & Strategy
-
-Reviewer analysis indicates momentum signals performing well in current environment.
-Strategy adjustment: +0.02 toward momentum weighting (55% → 57% momentum, 45% → 43% fundamental).
-
-## Legal Disclaimer
-
-This report is for informational purposes only and should not be considered as investment advice.
-
-**Data Sources**: Price data as of 2025-01-20T10:30:00Z
+**데이터 출처/Data Sources**: 가격 데이터 기준 2025-01-20T10:30:00Z, 펀더멘털 데이터는 지연될 수 있음
 ```

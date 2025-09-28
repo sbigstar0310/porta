@@ -8,6 +8,7 @@ from .report_usecase import ReportUsecase
 from .task_usecase import TaskUsecase
 
 
+
 # UseCase 팩토리 함수들
 def get_user_usecase() -> UserUsecase:
     """
@@ -68,3 +69,4 @@ __all__ = [
     "get_task_usecase",
     "TaskUsecase",
 ]
+

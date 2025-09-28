@@ -127,3 +127,4 @@ async def agent_run(
     except Exception as e:
         logger.error(f"Agent run failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

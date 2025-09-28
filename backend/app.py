@@ -54,6 +54,7 @@ if not result:
     logger.error("환경변수 로드 실패")
     raise Exception("환경변수 로드 실패")
 
+
 # API KEYS
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")

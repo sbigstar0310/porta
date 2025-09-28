@@ -35,6 +35,7 @@ def get_user(user_id: int, user_usecase: UserUsecase = Depends(get_user_usecase)
 
 @router.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def create_user(user_data: UserCreate, user_usecase: UserUsecase = Depends(get_user_usecase)) -> UserOut:
+
     """
     새 사용자 등록
 
@@ -49,6 +50,7 @@ async def create_user(user_data: UserCreate, user_usecase: UserUsecase = Depends
         HTTPException: 사용자 생성 실패 시
     """
     user = await user_usecase.register_user(
+
         email=user_data.email, password=user_data.password, timezone=user_data.timezone, language=user_data.language
     )
 

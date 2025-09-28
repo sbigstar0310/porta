@@ -85,6 +85,7 @@ class UserOut(BaseModel):
 class UserPatch(BaseModel):
     """사용자 정보 수정 스키마"""
 
+    email: Optional[str] = None
     timezone: Optional[str] = Field(None, max_length=50, description="IANA timezone (예: Asia/Seoul)")
     language: Optional[str] = Field(None, min_length=2, max_length=2, description="ISO 639-1 언어 코드")
 

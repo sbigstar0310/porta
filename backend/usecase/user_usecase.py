@@ -4,6 +4,7 @@ from repo import UserRepo, PortfolioRepo
 from data.models import User
 from supabase import Client
 import asyncio
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ class EmailNotVerifiedException(Exception):
     pass
 
 
+
 class UserUsecase:
     """
     사용자 관련 비즈니스 로직을 처리하는 UseCase 클래스
@@ -22,6 +24,7 @@ class UserUsecase:
     """
 
     def __init__(self, user_repo: UserRepo, portfolio_repo: PortfolioRepo, supabase_client: Client):
+
         """
         UserUsecase 초기화
 
@@ -31,6 +34,7 @@ class UserUsecase:
         self.user_repo = user_repo
         self.portfolio_repo = portfolio_repo
         self.supabase_client = supabase_client
+
 
     def get_user_profile(self, user_id: int) -> Optional[User]:
         """
@@ -45,6 +49,7 @@ class UserUsecase:
         try:
             # 사용자 정보 조회
             user = self.user_repo.get_by_id(user_id)
+
             if not user:
                 logger.warning(f"사용자를 찾을 수 없습니다. user_id: {user_id}")
                 return None
@@ -89,6 +94,7 @@ class UserUsecase:
     async def register_user(
         self, email: str, password: str, timezone: str = "UTC", language: str = "ko"
     ) -> Optional[User]:
+
         """
         새 사용자를 등록합니다.
 
@@ -131,6 +137,7 @@ class UserUsecase:
                 logger.error(f"포트폴리오 생성 중 오류 발생: user_id={user.id}, error={portfolio_error}")
                 # 포트폴리오 생성 실패해도 사용자는 반환 (나중에 수동으로 생성 가능)
 
+
             return user
 
         except Exception as e:
@@ -167,6 +174,7 @@ class UserUsecase:
         return UserOut(**user_data)
 
     def login(self, email: str, password: str) -> Optional[UserOut]:
+
         """
         사용자 로그인
 

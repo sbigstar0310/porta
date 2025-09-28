@@ -8,6 +8,7 @@ from dateutil import parser as date_parser
 from .base_repo import BaseRepo
 import logging
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,6 +16,7 @@ class PortfolioRepo(BaseRepo):
     def __init__(self, stock_client: StockClient, db_client: Client, table_name: str = "portfolios"):
         super().__init__(db_client, table_name)
         self.stock_client = stock_client or StockClient()
+
 
     def _get_enriched_position(self, position: Position, current_price: Decimal) -> PositionOut:
         """포지션별 실시간 계산 필드들 계산 (현재가, 시장가치, 미실현 손익, 미실현 손익 비율)
@@ -64,6 +66,7 @@ class PortfolioRepo(BaseRepo):
                     base_currency=data["base_currency"],
                     cash=Decimal(str(data["cash"])),
                     updated_at=date_parser.parse(data["updated_at"]),
+
                 )
             return None
 
@@ -96,6 +99,7 @@ class PortfolioRepo(BaseRepo):
                         total_shares=Decimal(str(p["total_shares"])),
                         avg_buy_price=Decimal(str(p["avg_buy_price"])),
                         updated_at=date_parser.parse(p["updated_at"]),
+
                     )
                     for p in data
                 ]

@@ -5,6 +5,7 @@ import logging
 from .base_repo import BaseRepo
 from data.schemas import UserCreate, UserOut, UserPatch
 
+
 logger = logging.getLogger(__name__)
 
 

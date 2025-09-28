@@ -29,6 +29,7 @@ async def patch_portfolio(
     """포트폴리오 정보 업데이트"""
     try:
         portfolio = await portfolio_usecase.update_portfolio(user_id=current_user_id, portfolio=payload)
+
         return portfolio
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Portfolio update failed: {str(e)}")
