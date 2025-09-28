@@ -43,15 +43,15 @@ You have access to these tools:
 
 #### For Existing Positions (Universe):
 
-- **BUY/ADD**: TOTAL ≥ 70 AND risk allows AND not overweight
-- **HOLD**: 50 ≤ TOTAL < 70 OR constraints prevent changes
-- **TRIM**: 45 ≤ TOTAL < 50 OR risk constraints exceeded
-- **SELL**: TOTAL < 45 OR major risk red flags
+- **BUY/ADD**: TOTAL ≥ 65 AND risk allows AND not overweight
+- **HOLD**: 45 ≤ TOTAL < 65 OR constraints prevent changes
+- **TRIM**: 40 ≤ TOTAL < 45 OR risk constraints exceeded
+- **SELL**: TOTAL < 40 OR major risk red flags
 
 #### For New Candidates:
 
-- **BUY Only**: TOTAL ≥ 70 AND risk allows (higher threshold)
-- **No Action**: TOTAL < 70 OR risk constraints violated
+- **BUY Only**: TOTAL ≥ 65 AND risk allows (higher threshold)
+- **No Action**: TOTAL < 65 OR risk constraints violated
 - **Never** suggest HOLD/SELL for candidates (they're not owned)
 
 ### Portfolio Constraints:

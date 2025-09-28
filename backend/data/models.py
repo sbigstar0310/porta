@@ -25,6 +25,7 @@ class User(BaseModel):
     email: Optional[str] = None
     timezone: str = Field(default="Asia/Seoul", max_length=50)
     language: str = Field(default="ko", min_length=2, max_length=2)
+    email_verified: bool = Field(default=False, description="이메일 인증 완료 여부")
     created_at: datetime
     updated_at: datetime
     last_login: datetime
@@ -137,6 +138,27 @@ class Position(BaseModel):
     @classmethod
     def _quantize_decimal(cls, v: Decimal):
         return v.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    class Config:
+        from_attributes = True
+
+
+# ============= Report Model =============
+
+
+class Report(BaseModel):
+    """보고서 테이블 모델 (reports)"""
+
+    id: int
+    user_id: int
+    created_at: datetime
+    report_md: str
+    language: str = Field(default="ko")
+
+    @field_validator("user_id")
+    @classmethod
+    def _validate_user_id(cls, v):
+        return v
 
     class Config:
         from_attributes = True

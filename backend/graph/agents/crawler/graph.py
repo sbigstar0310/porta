@@ -6,6 +6,7 @@ from datetime import datetime
 from jinja2 import Template
 from langgraph.prebuilt import create_react_agent
 from langchain_community.tools import DuckDuckGoSearchResults
+from langchain_core.runnables.config import RunnableConfig
 
 
 def load_system_prompt():
@@ -22,9 +23,9 @@ CRAWLER_SYSTEM_PROMPT = load_system_prompt()
 def build_crawler_graph(llm_client):
     """LLM 클라이언트를 주입받아 create_react_agent로 간단 구성"""
 
-    def agent_wrapper(state: CrawlerState) -> dict:
+    def agent_wrapper(state: CrawlerState, *, config: RunnableConfig | None = None, **kwargs) -> dict:
         # Pre-built DuckDuckGo 툴 생성
-        web_search_tool = DuckDuckGoSearchResults(num_results=5)
+        web_search_tool = DuckDuckGoSearchResults()
 
         # state가 dict인지 Pydantic 모델인지 확인하고 안전하게 접근
         if isinstance(state, dict):
@@ -49,7 +50,7 @@ def build_crawler_graph(llm_client):
             prompt=prompt,
             response_format=CrawlerOutput,
         )
-        out = agent.invoke(messages=[], input=state)
+        out = agent.invoke(messages=[], input=state, config=config)
 
         # structured_response에서 실제 결과 추출
         if "structured_response" in out and out["structured_response"]:
@@ -89,4 +90,5 @@ def adapt_crawler_to_parent_out(sub_out: CrawlerState) -> dict:
     return {
         "crawl_snapshot_id": snapshot_id,
         "new_candidates": new_candidates,
+        "crawler_end": True,
     }

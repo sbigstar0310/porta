@@ -56,9 +56,16 @@ class UserOut(BaseModel):
     email: Optional[str] = None
     timezone: str
     language: str
+    email_verified: bool = Field(default=False, description="이메일 인증 완료 여부")
     created_at: datetime
     updated_at: datetime
     last_login: datetime
+
+    # 인증 토큰들 (로그인 시에만 포함)
+    access_token: Optional[str] = Field(None, description="JWT 액세스 토큰")
+    refresh_token: Optional[str] = Field(None, description="JWT 리프레시 토큰")
+    token_type: Optional[str] = Field(None, description="토큰 타입 (Bearer)")
+    expires_in: Optional[int] = Field(None, description="토큰 만료 시간 (초)")
 
     class Config:
         from_attributes = True
@@ -78,7 +85,6 @@ class UserOut(BaseModel):
 class UserPatch(BaseModel):
     """사용자 정보 수정 스키마"""
 
-    email: Optional[str] = None
     timezone: Optional[str] = Field(None, max_length=50, description="IANA timezone (예: Asia/Seoul)")
     language: Optional[str] = Field(None, min_length=2, max_length=2, description="ISO 639-1 언어 코드")
 
@@ -195,6 +201,9 @@ class PortfolioPatch(BaseModel):
             return v
         return v.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
+    class Config:
+        json_encoders = {Decimal: float}  # Decimal을 float으로 변환하여 JSON serialization 지원
+
 
 # ============= Transaction Schemas =============
 
@@ -254,6 +263,18 @@ class TransactionOut(BaseModel):
 # ============= Position Schemas =============
 
 
+class PositionCreate(BaseModel):
+    """포지션 생성 스키마"""
+
+    portfolio_id: int
+    ticker: str
+    total_shares: Decimal
+    avg_buy_price: Decimal
+
+    class Config:
+        json_encoders = {Decimal: float}  # Decimal을 float으로 변환하여 JSON serialization 지원
+
+
 class PositionOut(BaseModel):
     """포지션 출력 스키마"""
 
@@ -271,3 +292,107 @@ class PositionOut(BaseModel):
 
     class Config:
         from_attributes = True
+        json_encoders = {Decimal: float}  # Decimal을 float으로 변환하여 JSON serialization 지원
+
+
+class PositionPatch(BaseModel):
+    """포지션 부분 수정 스키마"""
+
+    ticker: Optional[str] = None
+    total_shares: Optional[Decimal] = Field(None, ge=0)
+    avg_buy_price: Optional[Decimal] = Field(None, gt=0)
+
+    class Config:
+        json_encoders = {Decimal: float}  # Decimal을 float으로 변환하여 JSON serialization 지원
+
+
+# ============= Stock Schemas =============
+
+
+class StockSearchOut(BaseModel):
+    """종목 검색 결과 스키마"""
+
+    ticker: str = Field(..., min_length=1, max_length=10, description="종목 티커 심볼")
+    company_name: str = Field(..., min_length=1, max_length=200, description="회사명")
+
+    @field_validator("ticker")
+    @classmethod
+    def _validate_ticker(cls, v):
+        return v.upper().strip()
+
+    @field_validator("company_name")
+    @classmethod
+    def _validate_company_name(cls, v):
+        return v.strip()
+
+    class Config:
+        json_schema_extra = {"example": {"ticker": "AAPL", "company_name": "Apple Inc."}}
+
+
+# ============= Report Schemas =============
+
+
+class ReportCreate(BaseModel):
+    """보고서 생성 스키마"""
+
+    user_id: int = Field(..., gt=0)
+    report_md: str = Field(..., min_length=1, description="마크다운 형식의 보고서 내용")
+    language: str = Field(default="ko", min_length=2, max_length=2, description="ISO 639-1 언어 코드")
+
+    @field_validator("language")
+    @classmethod
+    def _validate_language(cls, v):
+        if len(v) != 2 or not v.isalpha():
+            raise ValueError("Language must be a 2-character ISO 639-1 code")
+        return v.lower()
+
+
+class ReportOut(BaseModel):
+    """보고서 출력 스키마"""
+
+    id: int
+    user_id: int
+    created_at: datetime
+    report_md: str
+    language: str
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "user_id": 1,
+                "created_at": "2025-09-16T12:30:00Z",
+                "report_md": "# 포트폴리오 분석 보고서\n\n## 요약\n귀하의 포트폴리오 분석 결과입니다.",
+                "language": "ko",
+            }
+        }
+
+
+class ReportPatch(BaseModel):
+    """보고서 수정 스키마"""
+
+    report_md: Optional[str] = Field(None, min_length=1, description="마크다운 형식의 보고서 내용")
+    language: Optional[str] = Field(None, min_length=2, max_length=2, description="ISO 639-1 언어 코드")
+
+    @field_validator("language")
+    @classmethod
+    def _validate_language(cls, v):
+        if v is None:
+            return v
+        if len(v) != 2 or not v.isalpha():
+            raise ValueError("Language must be a 2-character ISO 639-1 code")
+        return v.lower()
+
+
+class TaskProgressOut(BaseModel):
+    """
+    Celery 태스크 진행 상황 응답 스키마
+    """
+
+    task_id: str
+    status: str  # PENDING, PROGRESS, SUCCESS, FAILURE, REVOKED
+    percent: float  # 0.0 ~ 100.0
+    message: Optional[str] = None
+    result: Optional[dict] = None
+    error: Optional[str] = None

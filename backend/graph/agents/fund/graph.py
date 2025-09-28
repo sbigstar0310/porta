@@ -4,6 +4,7 @@ from langgraph.prebuilt import create_react_agent
 from .schema import FundOutput, FundState
 from jinja2 import Template
 from ...tools.stock_data import calculate_fund_scores
+from langchain_core.runnables.config import RunnableConfig
 
 
 def load_system_prompt():
@@ -20,7 +21,7 @@ FUND_SYSTEM_PROMPT = load_system_prompt()
 def build_fund_graph(llm_client):
     """LLM 클라이언트를 주입받는 fund graph 빌더"""
 
-    def agent_wrapper(state: FundState) -> dict:
+    def agent_wrapper(state: FundState, *, config: RunnableConfig | None = None, **kwargs) -> dict:
         # tools 정의 - 통합된 모멘텀 스코어 계산 도구
         tools = [calculate_fund_scores]
 
@@ -50,7 +51,7 @@ def build_fund_graph(llm_client):
             prompt=prompt,
             response_format=FundOutput,
         )
-        out = agent.invoke(messages=[], input=state)
+        out = agent.invoke(messages=[], input=state, config=config)
 
         # structured_response에서 실제 결과 추출
         if "structured_response" in out and out["structured_response"]:
@@ -87,4 +88,4 @@ def adapt_parent_to_fund_in(parent) -> FundState:
 def adapt_fund_to_parent_out(sub_out: FundState) -> dict:
     fund_score = sub_out.get("fund_score", [])
     fund_score = [f_item.model_dump() for f_item in fund_score]
-    return {"fund_score": fund_score}
+    return {"fund_score": fund_score, "fund_end": True}

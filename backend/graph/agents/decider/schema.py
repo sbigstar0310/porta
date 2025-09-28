@@ -1,7 +1,7 @@
 # agents/decider/schema.py
 from typing import List, Dict, Any
 from pydantic import BaseModel
-from schemas import PortfolioOut
+from data.schemas import PortfolioOut
 
 
 class Decision(BaseModel):
@@ -28,6 +28,7 @@ class DeciderState(BaseModel):
     risk_note: Dict[str, Any]
     decisions: List[Decision] | None = None  # 출력: 매매 결정들
     final_portfolio: PortfolioOut | None = None  # 출력: 최종 포트폴리오
+    risk_end: bool = False
 
 
 class DeciderOutput(BaseModel):

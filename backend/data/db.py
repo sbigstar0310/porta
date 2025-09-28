@@ -45,7 +45,7 @@ class Database:
     async def _init_supabase_client(self):
         """Supabase 클라이언트 초기화"""
         try:
-            self._client = get_supabase_client().get_client()
+            self._client = get_supabase_client()
             logger.info("Supabase 클라이언트가 성공적으로 초기화되었습니다.")
 
         except Exception as e:

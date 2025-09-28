@@ -4,7 +4,7 @@ import numpy as np
 from typing import Dict, List, Any
 from datetime import datetime
 from langchain_core.tools import tool
-from clients.stock_client import StockClient
+from clients import get_stock_client
 
 
 @tool
@@ -22,7 +22,7 @@ def get_stock_data(tickers: List[str], period: str = "6mo") -> Dict[str, Any]:
     """
     try:
         # init StockClient
-        stock_client = StockClient()
+        stock_client = get_stock_client()
 
         # Get stock data
         stock_data = stock_client.get_stock_data(tickers, period)
@@ -57,7 +57,7 @@ def calculate_momentum_scores(tickers: List[str], period: str = "6mo") -> Dict[s
     """
     try:
         # init StockClient
-        stock_client = StockClient()
+        stock_client = get_stock_client()
 
         # 1단계: 모든 티커의 주식 데이터 수집
         all_features = {}
@@ -301,7 +301,7 @@ def calculate_fund_scores(tickers: List[str], period: str = "6mo") -> Dict[str, 
     """
     try:
         # init StockClient
-        stock_client = StockClient()
+        stock_client = get_stock_client()
 
         # Get stock data
         stock_data = stock_client.get_stock_data(tickers, period)
@@ -603,7 +603,7 @@ def calculate_max_weight_pct(tickers: List[str], base_weight: float = 10, period
         Dict containing max weight percentage for all tickers
     """
     # init StockClient
-    stock_client = StockClient()
+    stock_client = get_stock_client()
 
     results = {}
     stock_data = stock_client.get_stock_data(tickers, period)

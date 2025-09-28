@@ -41,6 +41,11 @@ Generate comprehensive, actionable investment reports for email distribution. Sy
 
 ## Report Structure
 
+**CRITICAL INSTRUCTIONS - READ FIRST:**
+
+- You MUST use the EXACT markdown template provided below
+- NEVER deviate from the specified structure
+
 Use this exact markdown template with appropriate language:
 
 ```markdown

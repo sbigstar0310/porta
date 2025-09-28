@@ -11,7 +11,7 @@ router = APIRouter(prefix="/health", tags=["health"])
 @router.get("")
 async def health():
     """기본 헬스체크 엔드포인트"""
-    return {"ok": True}
+    return {"status": "healthy", "message": "API 서버가 정상적으로 실행되고 있습니다."}
 
 
 @router.get("/db")
