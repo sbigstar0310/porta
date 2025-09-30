@@ -9,6 +9,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS users (
     id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     email        VARCHAR(255) UNIQUE,
+    uuid         UUID NOT NULL DEFAULT uuid_generate_v4(),
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_login   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -16,7 +18,8 @@ CREATE TABLE IF NOT EXISTS users (
     language     VARCHAR(2)   NOT NULL DEFAULT 'en'
 );
 
-ALTER TABLE users ADD COLUMN IF NOT EXISTS uuid UUID NOT NULL DEFAULT uuid_generate_v4();
+CREATE INDEX IF NOT EXISTS idx_users_email_verified ON users(email_verified);
+CREATE INDEX IF NOT EXISTS idx_users_uuid ON users(uuid);
 
 -- portfolios ------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS portfolios (
@@ -29,7 +32,6 @@ CREATE TABLE IF NOT EXISTS portfolios (
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT uq_portfolios_user UNIQUE (user_id)
 );
-
 
 -- transactions ---------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS transactions (
