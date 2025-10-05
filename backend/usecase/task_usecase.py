@@ -65,6 +65,60 @@ class TaskUsecase:
             "task_id": None,
         }
 
+    def check_existing_running_task_excluding(self, current_user_id: int, current_task_id: str) -> dict:
+        """
+        해당 유저의 실행 중인 태스크가 있는지 확인합니다 (현재 태스크 제외).
+
+        Args:
+            current_user_id: 현재 사용자 ID
+            current_task_id: 현재 태스크 ID (제외할 태스크)
+
+        Returns:
+            dict: 실행 중인 태스크 정보
+        """
+        # 현재 활성 태스크 검색
+        inspect = celery_app.control.inspect()
+        active_tasks = inspect.active()
+
+        # 활성 태스크가 없으면 False 반환
+        if not active_tasks:
+            return {
+                "is_running": False,
+                "task_id": None,
+            }
+
+        # 해당 유저의 실행 중인 태스크 확인 (현재 태스크 제외)
+        for _, tasks in active_tasks.items():
+            if not tasks:
+                continue
+
+            # 해당 유저의 실행 중인 태스크 확인
+            for task in tasks:
+                if task.get("name") == "worker.tasks.run_agent_task":
+                    task_id = task.get("id")
+
+                    # 현재 태스크는 제외
+                    if task_id == current_task_id:
+                        logger.debug(f"Skipping current task {current_task_id} for user {current_user_id}")
+                        continue
+
+                    # Get task args
+                    args = task.get("args", [])
+                    if args and len(args) > 0 and args[0] == current_user_id:
+                        logger.info(
+                            f"User {current_user_id} already has running task: {task_id} \
+                                (excluding current: {current_task_id})"
+                        )
+                        return {
+                            "is_running": True,
+                            "task_id": task_id,
+                        }
+
+        return {
+            "is_running": False,
+            "task_id": None,
+        }
+
     def cancel_task(self, task_id: str) -> bool:
         """
         태스크 취소

@@ -184,12 +184,13 @@ async def _run_agent_async(
         raise
 
 
-def _run_agent_with_check(current_user_id: int) -> bool:
+def _run_agent_with_check_excluding(current_user_id: int, current_task_id: str) -> bool:
     """
-    Check if agent is already running
+    Check if agent is already running (excluding current task)
 
     Args:
         current_user_id: 사용자 ID
+        current_task_id: 현재 태스크 ID (자기 자신 제외용)
 
     Returns:
         bool: (true: 실행 중, false: 실행 중이 아님)
@@ -199,20 +200,23 @@ def _run_agent_with_check(current_user_id: int) -> bool:
         from usecase import get_task_usecase
 
         task_usecase = get_task_usecase()
-        if task_usecase.check_existing_running_task(current_user_id)["is_running"]:
+        result = task_usecase.check_existing_running_task_excluding(current_user_id, current_task_id)
+        if result["is_running"]:
+            logger.info(f"Agent is already running for user {current_user_id}, task_id: {result['task_id']}")
             return True
-    except Exception as e:
-        logger.error(f"Agent task failed: {e}")
-        raise
+        return False
 
-    return False
+    except Exception as e:
+        logger.error(f"Error checking existing task for user {current_user_id}: {e}")
+        # 에러 시에는 안전하게 실행하지 않음
+        return True
 
 
 @celery_app.task(bind=True)
 def run_agent_task(self: Task, current_user_id: int):
     try:
-        # Check if agent is already running
-        if _run_agent_with_check(current_user_id):
+        # Check if agent is already running (exclude current task)
+        if _run_agent_with_check_excluding(current_user_id, self.request.id):
             logger.info(f"Agent is already running for user {current_user_id}")
             return
 
@@ -226,8 +230,8 @@ def run_agent_task(self: Task, current_user_id: int):
 @celery_app.task(bind=True)
 def run_scheduled_agent_task(self: Task, current_user_id: int):
     try:
-        # Check if agent is already running
-        if _run_agent_with_check(current_user_id):
+        # Check if agent is already running (exclude current task)
+        if _run_agent_with_check_excluding(current_user_id, self.request.id):
             logger.info(f"Agent is already running for user {current_user_id}")
             return
 
