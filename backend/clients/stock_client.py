@@ -4,12 +4,21 @@ import requests
 import logging
 from typing import Dict, List, Any
 from data.schemas import StockSearchOut
+from clients.cache_client import CacheClient
 
 logger = logging.getLogger(__name__)
 
 
 class StockClient:
+    _cache_client = None
+
     def __init__(self): ...
+
+    @classmethod
+    def get_cache_client(cls) -> CacheClient:
+        if cls._cache_client is None:
+            cls._cache_client = CacheClient()
+        return cls._cache_client
 
     @classmethod
     def search_stock(cls, query: str) -> List[StockSearchOut]:
@@ -80,6 +89,53 @@ class StockClient:
             raise e
 
     @classmethod
+    def _get_stock_data_with_cache(cls, ticker: str, period: str = "3mo") -> Dict[str, Any]:
+        """개별 티커 캐싱"""
+        cache_client = cls.get_cache_client()
+
+        # 시간 버킷팅 적용
+        cache_key = f"_get_stock_data_with_cache:{ticker}:{period}"
+
+        def fetch_single_ticker():
+            try:
+                stock = yf.Ticker(ticker)
+                hist = stock.history(period=period)
+                info = stock.info
+                calendar = stock.calendar
+
+                # 데이터 품질 검증
+                if hist.empty:
+                    logger.warning(f"No historical data for {ticker}")
+                    return {
+                        "status": "error",
+                        "error": f"No historical data for {ticker}",
+                        "stock_history": pd.DataFrame(),
+                        "stock_info": {},
+                        "stock_calendar": pd.DataFrame(),
+                    }
+
+                logger.debug(f"Successfully fetched {len(hist)} days of data for {ticker}")
+                return {
+                    "status": "success",
+                    "stock_history": hist,
+                    "stock_info": info,
+                    "stock_calendar": calendar,
+                }
+
+            except Exception as e:
+                logger.error(f"Failed to fetch data for {ticker}: {e}")
+                return {
+                    "status": "error",
+                    "error": str(e),
+                    "stock_history": pd.DataFrame(),
+                    "stock_info": {},
+                    "stock_calendar": pd.DataFrame(),
+                }
+
+        # 24시간 캐시 (장기 데이터이므로 하루 차이는 미미함)
+        return cache_client.get_or_set(cache_key, fetch_single_ticker, ttl_seconds=24 * 60 * 60)
+
+    @classmethod
     def get_stock_data(cls, tickers: List[str], period: str = "3mo") -> Dict[str, Any]:
         """
         주식 데이터를 가져오는 도구
@@ -90,7 +146,7 @@ class StockClient:
                     "ytd", "max")
 
         Returns:
-            Dict containing stock data for all tickers
+            Dict containing stock data for all tickers with cache info
 
         Example:
         ```json
@@ -116,17 +172,21 @@ class StockClient:
             stock_info = {}
             stock_calendar = {}
             for ticker in tickers:
-                stock = yf.Ticker(ticker)
-                stock_history[ticker] = stock.history(period=period)
-                stock_info[ticker] = stock.info
-                stock_calendar[ticker] = stock.calendar
+                # 개별 티커 일일 캐싱 사용
+                ticker_data = cls._get_stock_data_with_cache(ticker, period)
+                stock_history[ticker] = ticker_data["stock_history"]
+                stock_info[ticker] = ticker_data["stock_info"]
+                stock_calendar[ticker] = ticker_data["stock_calendar"]
+
             return {
                 "status": "success",
                 "stock_history": stock_history,
                 "stock_info": stock_info,
                 "stock_calendar": stock_calendar,
             }
+
         except Exception as e:
+            logger.error(f"Critical error in get_stock_data: {e}")
             return {
                 "status": "error",
                 "error": str(e),
