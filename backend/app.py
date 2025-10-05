@@ -13,6 +13,7 @@ from routers.agent import router as agent_router
 from routers.position import router as position_router
 from routers.stock import router as stock_router
 from routers.report import router as report_router
+from routers.schedule import router as schedule_router
 import logging
 import colorlog
 
@@ -104,3 +105,4 @@ app.include_router(agent_router)
 app.include_router(position_router)
 app.include_router(stock_router)
 app.include_router(report_router)
+app.include_router(schedule_router)
