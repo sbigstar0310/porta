@@ -1,12 +1,12 @@
 # UseCase Layer Dependency Injection
-from repo import get_user_repo, get_portfolio_repo, get_position_repo, get_report_repo
+from repo import get_user_repo, get_portfolio_repo, get_position_repo, get_report_repo, get_schedule_repo
 from clients import get_supabase_client
 from .portfolio_usecase import PortfolioUsecase
 from .user_usecase import UserUsecase
 from .position_usecase import PositionUsecase
 from .report_usecase import ReportUsecase
 from .task_usecase import TaskUsecase
-
+from .schedule_usecase import ScheduleUsecase
 
 
 # UseCase 팩토리 함수들
@@ -56,6 +56,15 @@ def get_task_usecase() -> TaskUsecase:
     return TaskUsecase()
 
 
+def get_schedule_usecase() -> ScheduleUsecase:
+    """
+    ScheduleUsecase 인스턴스를 반환하는 팩토리 함수
+    FastAPI의 Depends와 함께 사용할 수 있습니다.
+    """
+    schedule_repo = get_schedule_repo()
+    return ScheduleUsecase(schedule_repo=schedule_repo)
+
+
 # 모든 UseCase 팩토리 함수들을 외부에서 import할 수 있도록 export
 __all__ = [
     "get_user_usecase",
@@ -68,5 +77,6 @@ __all__ = [
     "ReportUsecase",
     "get_task_usecase",
     "TaskUsecase",
+    "get_schedule_usecase",
+    "ScheduleUsecase",
 ]
-
