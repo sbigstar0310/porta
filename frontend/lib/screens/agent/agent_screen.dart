@@ -198,6 +198,7 @@ class _AgentScreenState extends State<AgentScreen>
                 icon: const Icon(Icons.play_arrow),
                 label: const Text('에이전트 실행'),
                 style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 56),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
               ),

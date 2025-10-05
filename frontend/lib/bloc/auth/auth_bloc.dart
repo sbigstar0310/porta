@@ -82,7 +82,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         throw Exception('refreshToken is null');
       }
 
-      await StorageService.saveUserData(user.toJson().toString());
+      // 사용자 정보를 JSON 문자열로 변환하여 저장
+      await StorageService.saveUserData(json.encode(user.toJson()));
 
       emit(AuthAuthenticated(user));
     } catch (e) {
@@ -124,8 +125,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         event.name,
       );
 
-      // 사용자 정보 저장
-      await StorageService.saveUserData(user.toJson().toString());
+      // 사용자 정보를 JSON 문자열로 변환하여 저장
+      await StorageService.saveUserData(json.encode(user.toJson()));
 
       // 이메일 인증 상태에 따라 다른 상태로 변경
       if (user.emailVerified) {

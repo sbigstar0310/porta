@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../bloc/auth/auth_bloc.dart';
 import '../bloc/auth/auth_event.dart';
 import '../bloc/auth/auth_state.dart';
+import '../constants/colors.dart';
 import '../widgets/email_verification_banner.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -39,162 +40,179 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: isDark
+          ? AppColors.darkBackground
+          : AppColors.neutralGray50,
       body: Column(
         children: [
-          // Custom AppBar with navigation tabs
+          // Modern AppBar with glassmorphism effect
           Container(
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
+              gradient: isDark
+                  ? LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppColors.darkSurface,
+                        AppColors.darkSurface.withOpacity(0.95),
+                      ],
+                    )
+                  : LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.white, Colors.white.withOpacity(0.95)],
+                    ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
+                  color: isDark
+                      ? Colors.black.withOpacity(0.3)
+                      : AppColors.shadowLight,
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
-            child: Column(
-              children: [
-                // Top bar with title and profile
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        'Porta',
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                      ),
-                      const Spacer(),
-                      BlocConsumer<AuthBloc, AuthState>(
-                        listener: (context, state) {
-                          if (state is AuthUnauthenticated) {
-                            context.go('/login');
-                          }
-                        },
-                        builder: (context, state) {
-                          if (state is AuthAuthenticated ||
-                              state is AuthEmailNotVerified) {
-                            final user = state is AuthAuthenticated
-                                ? state.user
-                                : (state as AuthEmailNotVerified).user;
-                            return PopupMenuButton<String>(
-                              offset: const Offset(0, 40),
-                              icon: CircleAvatar(
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.primary,
-                                child: Icon(
-                                  Icons.person,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onPrimary,
-                                ),
-                              ),
-                              onSelected: (value) {
-                                if (value == 'logout') {
-                                  context.read<AuthBloc>().add(
-                                    AuthLogoutRequested(),
-                                  );
-                                } else if (value == 'settings') {
-                                  context.go('/settings');
-                                }
-                              },
-                              itemBuilder: (BuildContext context) {
-                                return [
-                                  PopupMenuItem<String>(
-                                    value: 'profile',
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.person_outline),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            user.email ?? 'unknown@email.com',
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuItem<String>(
-                                    value: 'settings',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.settings_outlined),
-                                        SizedBox(width: 12),
-                                        Text('설정'),
-                                      ],
-                                    ),
-                                  ),
-                                  const PopupMenuDivider(),
-                                  const PopupMenuItem<String>(
-                                    value: 'logout',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.logout_outlined),
-                                        SizedBox(width: 12),
-                                        Text('로그아웃'),
-                                      ],
-                                    ),
-                                  ),
-                                ];
-                              },
-                            );
-                          }
-                          return Container();
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                // Navigation tabs
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
+            child: SafeArea(
+              child: Column(
+                children: [
+                  // Top header with logo and profile
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 20,
+                    ),
                     child: Row(
                       children: [
-                        _buildNavTab(
-                          context,
-                          '포트폴리오',
-                          Icons.account_balance_wallet_outlined,
-                          '/portfolio',
+                        // Logo and brand
+                        Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                gradient: AppColors.primaryGradient,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.primaryBlue.withOpacity(
+                                      0.3,
+                                    ),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.analytics_outlined,
+                                size: 20,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Porta',
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: isDark
+                                            ? Colors.white
+                                            : AppColors.neutralGray900,
+                                        letterSpacing: -0.5,
+                                      ),
+                                ),
+                                Text(
+                                  'AI 투자 플랫폼',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: isDark
+                                            ? AppColors.neutralGray400
+                                            : AppColors.neutralGray600,
+                                        fontSize: 11,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 24),
-                        _buildNavTab(
-                          context,
-                          '에이전트',
-                          Icons.smart_toy_outlined,
-                          '/agent',
-                        ),
-                        const SizedBox(width: 24),
-                        _buildNavTab(
-                          context,
-                          '포지션 관리',
-                          Icons.business_outlined,
-                          '/position',
-                        ),
-                        const SizedBox(width: 24),
-                        _buildNavTab(
-                          context,
-                          '시스템 상태',
-                          Icons.health_and_safety_outlined,
-                          '/health',
+                        const Spacer(),
+
+                        // Profile section
+                        BlocConsumer<AuthBloc, AuthState>(
+                          listener: (context, state) {
+                            if (state is AuthUnauthenticated) {
+                              context.go('/login');
+                            }
+                          },
+                          builder: (context, state) {
+                            if (state is AuthAuthenticated ||
+                                state is AuthEmailNotVerified) {
+                              final user = state is AuthAuthenticated
+                                  ? state.user
+                                  : (state as AuthEmailNotVerified).user;
+                              return _buildProfileMenu(context, user, isDark);
+                            }
+                            return Container();
+                          },
                         ),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-              ],
+
+                  // Modern navigation tabs
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppColors.darkSurfaceVariant.withOpacity(0.5)
+                          : AppColors.neutralGray100,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildModernNavTab(
+                            context,
+                            '포트폴리오',
+                            Icons.account_balance_wallet_outlined,
+                            '/portfolio',
+                            isDark,
+                          ),
+                          _buildModernNavTab(
+                            context,
+                            'AI 에이전트',
+                            Icons.psychology_outlined,
+                            '/agent',
+                            isDark,
+                          ),
+                          _buildModernNavTab(
+                            context,
+                            '포지션',
+                            Icons.trending_up_outlined,
+                            '/position',
+                            isDark,
+                          ),
+                          _buildModernNavTab(
+                            context,
+                            '시스템',
+                            Icons.monitor_heart_outlined,
+                            '/health',
+                            isDark,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           ),
           // Email verification banner (AuthEmailNotVerified 상태일 때만 표시)
@@ -251,23 +269,166 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildNavTab(
+  Widget _buildProfileMenu(BuildContext context, dynamic user, bool isDark) {
+    return PopupMenuButton<String>(
+      offset: const Offset(0, 50),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark
+              ? AppColors.darkSurfaceVariant.withOpacity(0.5)
+              : AppColors.neutralGray100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? AppColors.neutralGray600 : AppColors.neutralGray200,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.person_outline, color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.keyboard_arrow_down_outlined,
+              color: isDark
+                  ? AppColors.neutralGray400
+                  : AppColors.neutralGray600,
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+      onSelected: (value) {
+        if (value == 'logout') {
+          context.read<AuthBloc>().add(AuthLogoutRequested());
+        } else if (value == 'settings') {
+          context.go('/settings');
+        }
+      },
+      itemBuilder: (BuildContext context) {
+        return [
+          PopupMenuItem<String>(
+            value: 'profile',
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.person_outline,
+                    color: isDark
+                        ? AppColors.neutralGray300
+                        : AppColors.neutralGray600,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '계정',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: isDark
+                                ? Colors.white
+                                : AppColors.neutralGray900,
+                          ),
+                        ),
+                        Text(
+                          user.email ?? 'unknown@email.com',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark
+                                ? AppColors.neutralGray400
+                                : AppColors.neutralGray600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const PopupMenuDivider(),
+          PopupMenuItem<String>(
+            value: 'settings',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.settings_outlined,
+                  color: isDark
+                      ? AppColors.neutralGray300
+                      : AppColors.neutralGray600,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '설정',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : AppColors.neutralGray900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
+            value: 'logout',
+            child: Row(
+              children: [
+                Icon(Icons.logout_outlined, color: AppColors.error, size: 20),
+                const SizedBox(width: 12),
+                Text('로그아웃', style: TextStyle(color: AppColors.error)),
+              ],
+            ),
+          ),
+        ];
+      },
+    );
+  }
+
+  Widget _buildModernNavTab(
     BuildContext context,
     String title,
     IconData icon,
     String route,
+    bool isDark,
   ) {
     final isSelected = _currentRoute == route;
 
-    return InkWell(
+    return GestureDetector(
       onTap: () => context.go(route),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(right: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
           color: isSelected
-              ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+              ? (isDark ? AppColors.primaryBlueAccent : AppColors.primaryBlue)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color:
+                        (isDark
+                                ? AppColors.primaryBlueAccent
+                                : AppColors.primaryBlue)
+                            .withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
               : null,
         ),
         child: Row(
@@ -276,18 +437,23 @@ class _HomeScreenState extends State<HomeScreen> {
             Icon(
               icon,
               color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-              size: 20,
+                  ? Colors.white
+                  : (isDark
+                        ? AppColors.neutralGray400
+                        : AppColors.neutralGray600),
+              size: 18,
             ),
             const SizedBox(width: 8),
             Text(
               title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              style: TextStyle(
                 color: isSelected
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ? Colors.white
+                    : (isDark
+                          ? AppColors.neutralGray300
+                          : AppColors.neutralGray700),
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontSize: 14,
               ),
             ),
           ],

@@ -6,6 +6,7 @@ import '../../bloc/settings/settings_state.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
 import '../../bloc/auth/auth_state.dart';
+import '../../constants/colors.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -25,203 +26,603 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<SettingsBloc, SettingsState>(
-      builder: (context, settingsState) {
-        if (settingsState is SettingsLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-        if (settingsState is SettingsError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  settingsState.message,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+    return Scaffold(
+      backgroundColor: isDark
+          ? AppColors.darkBackground
+          : AppColors.neutralGray50,
+      body: BlocBuilder<SettingsBloc, SettingsState>(
+        builder: (context, settingsState) {
+          if (settingsState is SettingsLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (settingsState is SettingsError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: AppColors.error),
+                  const SizedBox(height: 16),
+                  Text(
+                    settingsState.message,
+                    style: TextStyle(color: AppColors.error, fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () => context.read<SettingsBloc>().add(
+                      SettingsLoadRequested(),
+                    ),
+                    child: const Text('다시 시도'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          if (settingsState is SettingsLoadedState) {
+            final settings = settingsState.settings;
+            _reportTimeController.text = settings.reportTime;
+
+            return CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // Modern header
+                SliverToBoxAdapter(child: _buildModernHeader(context, isDark)),
+
+                // User Info Section
+                SliverToBoxAdapter(
+                  child: BlocBuilder<AuthBloc, AuthState>(
+                    builder: (context, authState) {
+                      return _buildUserInfoSection(context, authState, isDark);
+                    },
+                  ),
                 ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () =>
-                      context.read<SettingsBloc>().add(SettingsLoadRequested()),
-                  child: const Text('다시 시도'),
+
+                // App Settings Section
+                SliverToBoxAdapter(
+                  child: _buildAppSettingsSection(
+                    context,
+                    settings,
+                    settingsState,
+                    isDark,
+                  ),
                 ),
+
+                // Report Settings Section
+                SliverToBoxAdapter(
+                  child: _buildReportSettingsSection(context, settings, isDark),
+                ),
+
+                // App Info Section
+                SliverToBoxAdapter(
+                  child: _buildAppInfoSection(context, isDark),
+                ),
+
+                // Bottom padding
+                const SliverToBoxAdapter(child: SizedBox(height: 100)),
               ],
-            ),
-          );
-        }
+            );
+          }
 
-        if (settingsState is SettingsLoadedState) {
-          final settings = settingsState.settings;
-          _reportTimeController.text = settings.reportTime;
+          return const SizedBox.shrink();
+        },
+      ),
+    );
+  }
 
-          return ListView(
+  Widget _buildModernHeader(BuildContext context, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 60, 24, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              // User Info Section
-              BlocBuilder<AuthBloc, AuthState>(
-                builder: (context, authState) {
-                  return Card(
-                    margin: const EdgeInsets.all(16),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '계정 정보',
-                            style: Theme.of(context).textTheme.titleLarge,
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.settings_outlined,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '설정',
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? Colors.white
+                                : AppColors.neutralGray900,
                           ),
-                          const SizedBox(height: 16),
-                          ListTile(
-                            leading: const Icon(Icons.person),
-                            title: const Text('이메일'),
-                            subtitle: Text(
-                              authState is AuthAuthenticated
-                                  ? authState.user.email ?? '이메일 없음'
-                                  : '로그인되지 않음',
-                            ),
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.logout),
-                            title: const Text('로그아웃'),
-                            onTap: () => _showLogoutDialog(context),
-                          ),
-                          const Divider(),
-                          ListTile(
-                            leading: Icon(
-                              Icons.delete_forever,
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                            title: Text(
-                              '회원 탈퇴',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                              ),
-                            ),
-                            subtitle: const Text('계정을 영구적으로 삭제합니다'),
-                            onTap: () => _showDeleteAccountDialog(context),
-                          ),
-                        ],
+                    ),
+                    Text(
+                      '앱 환경설정 및 계정 관리',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: isDark
+                            ? AppColors.neutralGray400
+                            : AppColors.neutralGray600,
                       ),
                     ),
-                  );
-                },
-              ),
-
-              // App Settings Section
-              Card(
-                margin: const EdgeInsets.all(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '앱 설정',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 16),
-                      SwitchListTile(
-                        title: const Text('알림'),
-                        subtitle: const Text('푸시 알림 받기'),
-                        value: settings.notificationsEnabled,
-                        onChanged: (value) {
-                          context.read<SettingsBloc>().add(
-                            SettingsNotificationsToggled(value),
-                          );
-                        },
-                      ),
-                      SwitchListTile(
-                        title: const Text('다크 모드'),
-                        subtitle: const Text('어두운 테마 사용'),
-                        value: settings.darkModeEnabled,
-                        onChanged: (value) {
-                          context.read<SettingsBloc>().add(
-                            SettingsDarkModeToggled(value),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        title: const Text('언어'),
-                        subtitle: Text(
-                          settingsState.getLanguageName(settings.language),
-                        ),
-                        trailing: const Icon(Icons.arrow_forward_ios),
-                        onTap: () =>
-                            _showLanguageDialog(context, settingsState),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Report Settings Section
-              Card(
-                margin: const EdgeInsets.all(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '보고서 설정',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 16),
-                      ListTile(
-                        title: const Text('보고서 시간'),
-                        subtitle: Text('매일 ${settings.reportTime}에 보고서 전송'),
-                        trailing: const Icon(Icons.access_time),
-                        onTap: () => _showTimePickerDialog(context),
-                      ),
-                      SwitchListTile(
-                        title: const Text('주말 보고서'),
-                        subtitle: const Text('주말에도 보고서 받기'),
-                        value: settings.weekendReports,
-                        onChanged: (value) {
-                          context.read<SettingsBloc>().add(
-                            SettingsWeekendReportsToggled(value),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // App Info Section
-              Card(
-                margin: const EdgeInsets.all(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '앱 정보',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 16),
-                      const ListTile(
-                        title: Text('버전'),
-                        subtitle: Text('1.0.0'),
-                      ),
-                      ListTile(
-                        title: const Text('설정 초기화'),
-                        subtitle: const Text('모든 설정을 기본값으로 복원'),
-                        trailing: const Icon(Icons.restore),
-                        onTap: () => _showResetDialog(context),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
             ],
-          );
-        }
+          ),
+        ],
+      ),
+    );
+  }
 
-        return const SizedBox.shrink();
-      },
+  Widget _buildUserInfoSection(
+    BuildContext context,
+    AuthState authState,
+    bool isDark,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? AppColors.neutralGray700 : AppColors.neutralGray200,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withOpacity(0.2)
+                : AppColors.shadowLight,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.person_outline,
+                  color: AppColors.info,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                '계정 정보',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : AppColors.neutralGray900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Email info
+          _buildModernListTile(
+            context,
+            Icons.email_outlined,
+            '이메일',
+            authState is AuthAuthenticated
+                ? authState.user.email ?? '이메일 없음'
+                : '로그인되지 않음',
+            null,
+            isDark,
+          ),
+
+          const SizedBox(height: 16),
+
+          // Logout button
+          _buildModernListTile(
+            context,
+            Icons.logout_outlined,
+            '로그아웃',
+            '계정에서 로그아웃합니다',
+            () => _showLogoutDialog(context),
+            isDark,
+          ),
+
+          const SizedBox(height: 16),
+
+          // Delete account button
+          _buildModernListTile(
+            context,
+            Icons.delete_forever_outlined,
+            '회원 탈퇴',
+            '계정을 영구적으로 삭제합니다',
+            () => _showDeleteAccountDialog(context),
+            isDark,
+            isDestructive: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppSettingsSection(
+    BuildContext context,
+    dynamic settings,
+    SettingsLoadedState settingsState,
+    bool isDark,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? AppColors.neutralGray700 : AppColors.neutralGray200,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withOpacity(0.2)
+                : AppColors.shadowLight,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.secondaryIndigo.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.tune_outlined,
+                  color: AppColors.secondaryIndigo,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                '앱 설정',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : AppColors.neutralGray900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Dark mode toggle
+          _buildModernSwitchTile(
+            context,
+            Icons.dark_mode_outlined,
+            '다크 모드',
+            '어두운 테마 사용',
+            settings.darkModeEnabled,
+            (value) {
+              context.read<SettingsBloc>().add(SettingsDarkModeToggled(value));
+            },
+            isDark,
+          ),
+
+          const SizedBox(height: 16),
+
+          // Language setting
+          _buildModernListTile(
+            context,
+            Icons.language_outlined,
+            '언어',
+            settingsState.getLanguageName(settings.language),
+            () => _showLanguageDialog(context, settingsState),
+            isDark,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportSettingsSection(
+    BuildContext context,
+    dynamic settings,
+    bool isDark,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? AppColors.neutralGray700 : AppColors.neutralGray200,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withOpacity(0.2)
+                : AppColors.shadowLight,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.report_outlined,
+                  color: AppColors.warning,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                '보고서 설정',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : AppColors.neutralGray900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Report time setting
+          _buildModernListTile(
+            context,
+            Icons.access_time_outlined,
+            '보고서 시간',
+            settings.reportTime == "09:00"
+                ? '시간을 설정해주세요 (기본값: ${settings.reportTime})'
+                : '매일 ${settings.reportTime}에 보고서 전송',
+            () => _showTimePickerDialog(context),
+            isDark,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppInfoSection(BuildContext context, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? AppColors.neutralGray700 : AppColors.neutralGray200,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withOpacity(0.2)
+                : AppColors.shadowLight,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.info_outline,
+                  color: AppColors.success,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                '앱 정보',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : AppColors.neutralGray900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Version info
+          _buildModernListTile(
+            context,
+            Icons.smartphone_outlined,
+            '버전',
+            '1.0.0',
+            null,
+            isDark,
+          ),
+
+          const SizedBox(height: 16),
+
+          // Reset settings
+          _buildModernListTile(
+            context,
+            Icons.restore_outlined,
+            '설정 초기화',
+            '모든 설정을 기본값으로 복원',
+            () => _showResetDialog(context),
+            isDark,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernListTile(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String subtitle,
+    VoidCallback? onTap,
+    bool isDark, {
+    bool isDestructive = false,
+  }) {
+    final color = isDestructive ? AppColors.error : null;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.darkSurfaceVariant.withOpacity(0.3)
+                : AppColors.neutralGray50,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color:
+                    color ??
+                    (isDark
+                        ? AppColors.neutralGray400
+                        : AppColors.neutralGray600),
+                size: 20,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color:
+                            color ??
+                            (isDark ? Colors.white : AppColors.neutralGray900),
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: isDark
+                            ? AppColors.neutralGray400
+                            : AppColors.neutralGray600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (onTap != null)
+                Icon(
+                  Icons.chevron_right,
+                  color: isDark
+                      ? AppColors.neutralGray500
+                      : AppColors.neutralGray400,
+                  size: 20,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernSwitchTile(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String subtitle,
+    bool value,
+    ValueChanged<bool> onChanged,
+    bool isDark,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.darkSurfaceVariant.withOpacity(0.3)
+            : AppColors.neutralGray50,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            color: isDark ? AppColors.neutralGray400 : AppColors.neutralGray600,
+            size: 20,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : AppColors.neutralGray900,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: isDark
+                        ? AppColors.neutralGray400
+                        : AppColors.neutralGray600,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: AppColors.primaryBlue,
+          ),
+        ],
+      ),
     );
   }
 
@@ -283,10 +684,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showTimePickerDialog(BuildContext context) async {
-    final currentTime = TimeOfDay.now();
+    // 현재 설정된 시간을 초기값으로 사용, 기본값(09:00)인 경우 현재 시간 사용
+    final settingsState = context.read<SettingsBloc>().state;
+    TimeOfDay initialTime = TimeOfDay.now();
+
+    if (settingsState is SettingsLoadedState) {
+      final reportTime = settingsState.settings.reportTime;
+      // 기본값(09:00)이 아닌 경우에만 설정된 시간 사용
+      if (reportTime != "09:00") {
+        final timeParts = reportTime.split(':');
+        final hour = int.parse(timeParts[0]);
+        final minute = int.parse(timeParts[1]);
+        initialTime = TimeOfDay(hour: hour, minute: minute);
+      }
+      // 기본값인 경우 현재 시간을 초기값으로 사용 (이미 TimeOfDay.now()로 설정됨)
+    }
+
     final TimeOfDay? pickedTime = await showTimePicker(
       context: context,
-      initialTime: currentTime,
+      initialTime: initialTime,
     );
 
     if (pickedTime != null) {
