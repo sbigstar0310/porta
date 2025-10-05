@@ -9,15 +9,6 @@ abstract class SettingsEvent extends Equatable {
 
 class SettingsLoadRequested extends SettingsEvent {}
 
-class SettingsNotificationsToggled extends SettingsEvent {
-  final bool enabled;
-
-  const SettingsNotificationsToggled(this.enabled);
-
-  @override
-  List<Object> get props => [enabled];
-}
-
 class SettingsDarkModeToggled extends SettingsEvent {
   final bool enabled;
 
@@ -34,15 +25,6 @@ class SettingsReportTimeUpdated extends SettingsEvent {
 
   @override
   List<Object> get props => [time];
-}
-
-class SettingsWeekendReportsToggled extends SettingsEvent {
-  final bool enabled;
-
-  const SettingsWeekendReportsToggled(this.enabled);
-
-  @override
-  List<Object> get props => [enabled];
 }
 
 class SettingsLanguageChanged extends SettingsEvent {
