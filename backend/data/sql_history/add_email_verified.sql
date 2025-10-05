@@ -11,6 +11,3 @@ UPDATE users SET email_verified = TRUE WHERE email_verified IS NULL OR email_ver
 -- 인덱스 추가 (성능 최적화)
 CREATE INDEX IF NOT EXISTS idx_users_email_verified ON users(email_verified);
 CREATE INDEX IF NOT EXISTS idx_users_uuid ON users(uuid);
-
--- 확인 쿼리
-SELECT id, email, email_verified, created_at FROM users LIMIT 5;

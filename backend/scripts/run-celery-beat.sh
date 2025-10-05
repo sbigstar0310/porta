@@ -12,5 +12,5 @@ fi
 # Activate virtual environment
 source .venv/bin/activate
 
-# Run Celery Worker
-celery -A worker.worker.celery_app worker --loglevel=info -Q agent,celery
+# Run Celery Beat with RedBeat scheduler and shorter poll interval
+celery -A worker.worker.celery_app beat -S redbeat.RedBeatScheduler --loglevel=DEBUG --max-interval=10

@@ -163,3 +163,29 @@ class Report(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ============= Schedule Model =============
+
+
+class Schedule(BaseModel):
+    """스케줄 테이블 모델 (schedules)"""
+
+    id: int
+    user_id: int
+    hour: int = Field(..., ge=0, le=23)
+    minute: int = Field(..., ge=0, le=59)
+    timezone: str = Field(default="Asia/Seoul", max_length=50)
+    enabled: bool = Field(default=True, description="스케줄 활성 여부")
+    created_at: datetime
+    updated_at: datetime
+
+    @field_validator("timezone")
+    @classmethod
+    def _validate_timezone(cls, v):
+        if not TIMEZONE_PATTERN.match(v):
+            raise ValueError("Invalid timezone format")
+        return v
+
+    class Config:
+        from_attributes = True

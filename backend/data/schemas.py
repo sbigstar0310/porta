@@ -397,3 +397,33 @@ class TaskProgressOut(BaseModel):
     message: Optional[str] = None
     result: Optional[dict] = None
     error: Optional[str] = None
+
+
+class ScheduleCreate(BaseModel):
+    """스케줄 생성 스키마"""
+
+    user_id: int
+    hour: int = Field(..., ge=0, le=23)
+    minute: int = Field(..., ge=0, le=59)
+    timezone: str = Field(default="Asia/Seoul", max_length=50)
+    enabled: bool = Field(default=True, description="스케줄 활성 여부")
+
+
+class SchedulePatch(BaseModel):
+    """스케줄 수정 스키마"""
+
+    hour: Optional[int] = Field(None, ge=0, le=23)
+    minute: Optional[int] = Field(None, ge=0, le=59)
+    timezone: Optional[str] = Field(None, max_length=50)
+    enabled: Optional[bool] = Field(None, description="스케줄 활성 여부")
+
+
+class ScheduleOut(BaseModel):
+    """스케줄 출력 스키마"""
+
+    id: int
+    user_id: int
+    hour: int
+    minute: int
+    timezone: str
+    enabled: bool

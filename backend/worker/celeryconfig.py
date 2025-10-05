@@ -1,9 +1,10 @@
 from celery.schedules import crontab
 
+# static schedule
 beat_schedule = {
-    "run-daily-for-user-123": {
-        "task": "tasks.run_agent_for_user",
-        "schedule": crontab(hour=9, minute=0),  # 매일 오전 9시
-        "args": ("user_123",),
+    # sync schedules
+    "sync-schedules": {
+        "task": "worker.tasks.sync_all_schedules",
+        "schedule": crontab(minute="*/10"),  # 10분마다 동기화
     },
 }
