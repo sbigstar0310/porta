@@ -50,6 +50,40 @@ CREATE TABLE IF NOT EXISTS transactions (
     CONSTRAINT fk_transaction_portfolio
         FOREIGN KEY (portfolio_id) REFERENCES portfolios(id) ON DELETE CASCADE
 );
+
+-- reports -------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS reports (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    report_md TEXT NOT NULL,
+    language VARCHAR(2) NOT NULL DEFAULT 'ko',
+    CONSTRAINT fk_reports_user_id 
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_reports_user_id 
+    ON reports(user_id);
+CREATE INDEX IF NOT EXISTS idx_reports_created_at 
+    ON reports(created_at);
+
+-- schedules -------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS schedules (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    hour INTEGER NOT NULL CHECK (hour >= 0 AND hour <= 23),
+    minute INTEGER NOT NULL CHECK (minute >= 0 AND minute <= 59),
+    timezone VARCHAR(50) NOT NULL DEFAULT 'Asia/Seoul',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_schedule_user_id 
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_schedules_user_id ON public.schedules (user_id);
+CREATE INDEX idx_schedules_enabled ON public.schedules (enabled);
+
 -- Functions -------------------------------------------------------------------
 
 -- updated_at 자동 갱신용 함수 (portfolios)
