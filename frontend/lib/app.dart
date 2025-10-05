@@ -11,6 +11,7 @@ import 'bloc/health/health_bloc.dart';
 import 'bloc/settings/settings_bloc.dart';
 import 'bloc/settings/settings_event.dart';
 import 'bloc/settings/settings_state.dart';
+import 'constants/colors.dart';
 import 'services/storage_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
@@ -54,28 +55,261 @@ class _PortaAppState extends State<PortaApp> {
           create: (context) => SettingsBloc()..add(SettingsLoadRequested()),
         ),
       ],
-      child: BlocBuilder<AuthBloc, AuthState>(
-        builder: (context, authState) {
-          return BlocBuilder<SettingsBloc, SettingsState>(
-            builder: (context, settingsState) {
-              final isDarkMode = settingsState is SettingsLoadedState
-                  ? settingsState.settings.darkModeEnabled
-                  : false;
+      child: BlocBuilder<SettingsBloc, SettingsState>(
+        buildWhen: (previous, current) {
+          // 다크모드 설정이 실제로 변경되었을 때만 리빌드
+          if (previous is SettingsLoadedState &&
+              current is SettingsLoadedState) {
+            return previous.settings.darkModeEnabled !=
+                current.settings.darkModeEnabled;
+          }
+          // 초기 로딩 완료 시에는 리빌드
+          return current is SettingsLoadedState &&
+              previous is! SettingsLoadedState;
+        },
+        builder: (context, settingsState) {
+          final isDarkMode = settingsState is SettingsLoadedState
+              ? settingsState.settings.darkModeEnabled
+              : false;
+
+          return BlocBuilder<AuthBloc, AuthState>(
+            builder: (context, authState) {
+              // 인증 상태가 변경될 때마다 라우터 재생성 (로그인/로그아웃 처리를 위해)
+              final router = _createRouter(authState);
 
               return MaterialApp.router(
                 title: 'Porta',
-                theme: ThemeData(
-                  colorScheme: ColorScheme.fromSeed(
-                    seedColor: Colors.blue,
-                    brightness: isDarkMode ? Brightness.dark : Brightness.light,
-                  ),
-                  useMaterial3: true,
-                ),
-                routerConfig: _createRouter(authState),
+                theme: _buildLightTheme(),
+                darkTheme: _buildDarkTheme(),
+                themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+                routerConfig: router,
               );
             },
           );
         },
+      ),
+    );
+  }
+
+  ThemeData _buildLightTheme() {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: AppColors.lightColorScheme,
+      fontFamily: 'Inter', // 모던한 폰트
+      // AppBar 테마
+      appBarTheme: const AppBarTheme(
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.neutralGray900,
+        titleTextStyle: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: AppColors.neutralGray900,
+        ),
+      ),
+
+      // Card 테마
+      cardTheme: CardThemeData(
+        elevation: 2,
+        shadowColor: AppColors.shadowLight,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: Colors.white,
+      ),
+
+      // ElevatedButton 테마
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 2,
+          shadowColor: AppColors.shadowMedium,
+          backgroundColor: AppColors.primaryBlue,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+
+      // OutlinedButton 테마
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primaryBlue,
+          side: const BorderSide(color: AppColors.primaryBlue, width: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+
+      // TextButton 테마
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primaryBlue,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        ),
+      ),
+
+      // InputDecoration 테마
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.neutralGray50,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.neutralGray300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.neutralGray300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primaryBlue, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.error),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+      ),
+
+      // FloatingActionButton 테마
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: AppColors.primaryBlue,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: CircleBorder(),
+      ),
+
+      // BottomNavigationBar 테마
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Colors.white,
+        selectedItemColor: AppColors.primaryBlue,
+        unselectedItemColor: AppColors.neutralGray500,
+        elevation: 8,
+        type: BottomNavigationBarType.fixed,
+      ),
+    );
+  }
+
+  ThemeData _buildDarkTheme() {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: AppColors.darkColorScheme,
+      fontFamily: 'Inter',
+
+      // AppBar 테마
+      appBarTheme: const AppBarTheme(
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.neutralGray100,
+        titleTextStyle: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: AppColors.neutralGray100,
+        ),
+      ),
+
+      // Card 테마
+      cardTheme: CardThemeData(
+        elevation: 4,
+        shadowColor: Colors.black.withOpacity(0.3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: AppColors.darkSurface,
+      ),
+
+      // ElevatedButton 테마
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 4,
+          shadowColor: Colors.black.withOpacity(0.3),
+          backgroundColor: AppColors.primaryBlueAccent,
+          foregroundColor: AppColors.darkBackground,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+
+      // OutlinedButton 테마
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primaryBlueAccent,
+          side: const BorderSide(
+            color: AppColors.primaryBlueAccent,
+            width: 1.5,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+
+      // TextButton 테마
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primaryBlueAccent,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        ),
+      ),
+
+      // InputDecoration 테마
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.darkSurfaceVariant,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.neutralGray600),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.neutralGray600),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(
+            color: AppColors.primaryBlueAccent,
+            width: 2,
+          ),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.errorLight),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+      ),
+
+      // FloatingActionButton 테마
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: AppColors.primaryBlueAccent,
+        foregroundColor: AppColors.darkBackground,
+        elevation: 6,
+        shape: CircleBorder(),
+      ),
+
+      // BottomNavigationBar 테마
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: AppColors.darkSurface,
+        selectedItemColor: AppColors.primaryBlueAccent,
+        unselectedItemColor: AppColors.neutralGray400,
+        elevation: 8,
+        type: BottomNavigationBarType.fixed,
       ),
     );
   }
