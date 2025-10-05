@@ -8,6 +8,7 @@ from .portfolio_repo import PortfolioRepo
 from .position_repo import PositionRepo
 from .report_repo import ReportRepo
 from .transaction_repo import TransactionRepo
+from .schedule_repo import ScheduleRepo
 
 
 # Database 의존성 주입
@@ -67,6 +68,15 @@ def get_report_repo() -> ReportRepo:
     return ReportRepo(db_client=db_client)
 
 
+def get_schedule_repo() -> ScheduleRepo:
+    """
+    ScheduleRepo 인스턴스를 반환하는 팩토리 함수
+    FastAPI의 Depends와 함께 사용할 수 있습니다.
+    """
+    db_client = get_db_client()
+    return ScheduleRepo(db_client=db_client)
+
+
 # 모든 Repo 팩토리 함수들을 외부에서 import할 수 있도록 export
 __all__ = [
     "get_db_client",
@@ -74,8 +84,10 @@ __all__ = [
     "get_portfolio_repo",
     "get_position_repo",
     "get_report_repo",
+    "get_schedule_repo",
     "UserRepo",
     "PortfolioRepo",
     "PositionRepo",
     "ReportRepo",
+    "ScheduleRepo",
 ]
