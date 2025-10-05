@@ -71,8 +71,6 @@ class ScheduleRepo(BaseRepo):
                 .execute()
             )
 
-            print(response.data)
-
             if response.data:
                 return ScheduleOut(**response.data[0])
             return None
