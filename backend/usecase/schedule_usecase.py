@@ -89,12 +89,11 @@ class ScheduleUsecase:
             Optional[ScheduleOut]: 사용자의 스케줄 정보 (없으면 None)
         """
         try:
-            schedules = await self.schedule_repo.get_by_user_id(user_id)
-            if schedules:
+            schedule = await self.schedule_repo.get_by_user_id(user_id)
+            if schedule:
                 # 사용자당 하나의 스케줄만 있어야 하므로 첫 번째 스케줄 반환
-                result = schedules[0]
-                logger.info(f"사용자 스케줄 조회 완료: user_id={user_id}, schedule_id={result.id}")
-                return result
+                logger.info(f"사용자 스케줄 조회 완료: user_id={user_id}, schedule_id={schedule.id}")
+                return schedule
 
             logger.info(f"사용자 스케줄 없음: user_id={user_id}")
             return None

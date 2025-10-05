@@ -71,8 +71,10 @@ class ScheduleRepo(BaseRepo):
                 .execute()
             )
 
+            print(response.data)
+
             if response.data:
-                return ScheduleOut(**response.data)
+                return ScheduleOut(**response.data[0])
             return None
         except Exception as e:
             logger.error(f"사용자별 스케줄 목록 조회 중 예외 발생 (user_id: {user_id}): {e}")
@@ -118,11 +120,10 @@ class ScheduleRepo(BaseRepo):
                 self.db_client.table(self.table_name)
                 .update(schema.model_dump(mode="json", exclude_none=True))
                 .eq("id", schedule_id)
-                .single()
                 .execute()
             )
             if response.data:
-                return ScheduleOut(**response.data)
+                return ScheduleOut(**response.data[0])
             return None
         except Exception as e:
             logger.error(f"스케줄 업데이트 중 예외 발생 (ID: {schedule_id}): {e}")
