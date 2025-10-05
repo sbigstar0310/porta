@@ -7,6 +7,7 @@ from jinja2 import Template
 from langgraph.prebuilt import create_react_agent
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_core.runnables.config import RunnableConfig
+from clients import get_cache_client
 
 
 def load_system_prompt():
@@ -22,6 +23,8 @@ CRAWLER_SYSTEM_PROMPT = load_system_prompt()
 
 def build_crawler_graph(llm_client):
     """LLM 클라이언트를 주입받아 create_react_agent로 간단 구성"""
+    # cache client 생성
+    cache_client = get_cache_client()
 
     def agent_wrapper(state: CrawlerState, *, config: RunnableConfig | None = None, **kwargs) -> dict:
         # Pre-built DuckDuckGo 툴 생성
@@ -42,15 +45,22 @@ def build_crawler_graph(llm_client):
             asof=asof,
         )
 
-        # 에이전트 생성
-        agent = create_react_agent(
-            model=llm_client,
-            tools=[web_search_tool],
-            name="crawler",
-            prompt=prompt,
-            response_format=CrawlerOutput,
-        )
-        out = agent.invoke(messages=[], input=state, config=config)
+        if cache_client.exists("crawler_new_candidates"):
+            # cache 조회
+            new_candidates = cache_client.get("crawler_new_candidates")
+            return {
+                "new_candidates": new_candidates,
+            }
+        else:
+            # 에이전트 생성
+            agent = create_react_agent(
+                model=llm_client,
+                tools=[web_search_tool],
+                name="crawler",
+                prompt=prompt,
+                response_format=CrawlerOutput,
+            )
+            out = agent.invoke(messages=[], input=state, config=config)
 
         # structured_response에서 실제 결과 추출
         if "structured_response" in out and out["structured_response"]:
@@ -59,6 +69,10 @@ def build_crawler_graph(llm_client):
                 new_candidates = structured_response.get("new_candidates", [])
             else:
                 new_candidates = getattr(structured_response, "new_candidates", [])
+
+            # cache new_candidates
+            cache_client.set("crawler_new_candidates", new_candidates, ttl_seconds=60 * 60 * 24)
+
             return {
                 "new_candidates": new_candidates,
             }
