@@ -5,6 +5,7 @@ import '../models/portfolio.dart';
 import '../models/agent_status.dart';
 import '../models/stock_search_result.dart';
 import '../models/task_progress.dart';
+import '../models/schedule.dart';
 import 'package:flutter/foundation.dart';
 import 'storage_service.dart';
 
@@ -649,6 +650,166 @@ class ApiService {
       }
     } catch (e) {
       debugPrint('종목 검색 오류 상세: $e');
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection')) {
+        throw Exception('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요');
+      }
+      rethrow;
+    }
+  }
+
+  // Schedule endpoints
+  /// 현재 사용자의 스케줄 조회 (없으면 null 반환)
+  Future<Schedule?> getMySchedule() async {
+    try {
+      debugPrint('스케줄 조회 시도');
+      debugPrint('현재 토큰: $_authToken');
+
+      // 토큰이 없으면 저장소에서 다시 로드 시도
+      if (_authToken == null || _authToken == 'dummy_token') {
+        final token = await StorageService.getAuthToken();
+        if (token != null && token != 'dummy_token') {
+          _authToken = token;
+          debugPrint('저장소에서 토큰 복원: $token');
+        }
+      }
+
+      debugPrint('요청 헤더: $_headers');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/schedules/me'),
+        headers: _headers,
+      );
+
+      debugPrint('스케줄 조회 응답 상태코드: ${response.statusCode}');
+      debugPrint('스케줄 조회 응답 body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // null 체크 - 스케줄이 없을 수 있음
+        if (data == null) {
+          debugPrint('스케줄이 존재하지 않습니다');
+          return null;
+        }
+        return Schedule.fromJson(data);
+      } else if (response.statusCode == 401 || response.statusCode == 422) {
+        throw Exception('로그인이 필요합니다');
+      } else {
+        throw Exception('스케줄을 조회할 수 없습니다 (${response.statusCode})');
+      }
+    } catch (e) {
+      debugPrint('스케줄 조회 오류 상세: $e');
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection')) {
+        throw Exception('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요');
+      }
+      rethrow;
+    }
+  }
+
+  /// 새로운 스케줄 생성
+  Future<Schedule> createSchedule({
+    required int userId,
+    required int hour,
+    required int minute,
+    String timezone = 'Asia/Seoul',
+    bool enabled = true,
+  }) async {
+    try {
+      debugPrint('스케줄 생성 시도: $hour:$minute');
+
+      // 토큰이 없으면 저장소에서 다시 로드 시도
+      if (_authToken == null || _authToken == 'dummy_token') {
+        final token = await StorageService.getAuthToken();
+        if (token != null && token != 'dummy_token') {
+          _authToken = token;
+          debugPrint('저장소에서 토큰 복원: $token');
+        }
+      }
+
+      final requestBody = {
+        'user_id': userId,
+        'hour': hour,
+        'minute': minute,
+        'timezone': timezone,
+        'enabled': enabled,
+      };
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/schedules'),
+        headers: _headers,
+        body: json.encode(requestBody),
+      );
+
+      debugPrint('스케줄 생성 응답 상태코드: ${response.statusCode}');
+      debugPrint('스케줄 생성 응답 body: ${response.body}');
+
+      if (response.statusCode == 201) {
+        final data = json.decode(response.body);
+        return Schedule.fromJson(data);
+      } else if (response.statusCode == 409) {
+        throw Exception('이미 스케줄이 존재합니다');
+      } else if (response.statusCode == 401 || response.statusCode == 422) {
+        throw Exception('로그인이 필요합니다');
+      } else {
+        throw Exception('스케줄을 생성할 수 없습니다 (${response.statusCode})');
+      }
+    } catch (e) {
+      debugPrint('스케줄 생성 오류 상세: $e');
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection')) {
+        throw Exception('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요');
+      }
+      rethrow;
+    }
+  }
+
+  /// 현재 사용자의 스케줄 업데이트
+  Future<Schedule> updateMySchedule({
+    int? hour,
+    int? minute,
+    String? timezone,
+    bool? enabled,
+  }) async {
+    try {
+      debugPrint('스케줄 업데이트 시도');
+
+      // 토큰이 없으면 저장소에서 다시 로드 시도
+      if (_authToken == null || _authToken == 'dummy_token') {
+        final token = await StorageService.getAuthToken();
+        if (token != null && token != 'dummy_token') {
+          _authToken = token;
+          debugPrint('저장소에서 토큰 복원: $token');
+        }
+      }
+
+      final requestBody = <String, dynamic>{};
+      if (hour != null) requestBody['hour'] = hour;
+      if (minute != null) requestBody['minute'] = minute;
+      if (timezone != null) requestBody['timezone'] = timezone;
+      if (enabled != null) requestBody['enabled'] = enabled;
+
+      final response = await http.patch(
+        Uri.parse('$baseUrl/schedules/me'),
+        headers: _headers,
+        body: json.encode(requestBody),
+      );
+
+      debugPrint('스케줄 업데이트 응답 상태코드: ${response.statusCode}');
+      debugPrint('스케줄 업데이트 응답 body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return Schedule.fromJson(data);
+      } else if (response.statusCode == 404) {
+        throw Exception('업데이트할 스케줄이 없습니다');
+      } else if (response.statusCode == 401 || response.statusCode == 422) {
+        throw Exception('로그인이 필요합니다');
+      } else {
+        throw Exception('스케줄을 업데이트할 수 없습니다 (${response.statusCode})');
+      }
+    } catch (e) {
+      debugPrint('스케줄 업데이트 오류 상세: $e');
       if (e.toString().contains('SocketException') ||
           e.toString().contains('Connection')) {
         throw Exception('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요');
