@@ -34,7 +34,7 @@ def get_user_id_from_config(config: Optional[RunnableConfig]) -> int:
 @tool
 def get_portfolio_history(config: RunnableConfig, days: int = 7) -> Dict[str, Any]:
     """
-    지난 N일간의 포트폴리오 기록과 현재 포지션을 가져오는 도구
+    지난 N일간의 거래 기록과 현재 포지션을 가져오는 도구
 
     Args:
         days: 가져올 기간 (기본 7일)
