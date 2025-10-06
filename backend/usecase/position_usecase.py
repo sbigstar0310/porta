@@ -19,5 +19,5 @@ class PositionUsecase:
     async def update_position(self, position_id: int, position: PositionPatch) -> Optional[PositionOut]:
         return await self.position_repo.update(position_id, position)
 
-    async def delete_position(self, position_id: int) -> Optional[PositionOut]:
+    async def delete_position(self, position_id: int) -> bool:
         return await self.position_repo.delete_by_id(position_id)

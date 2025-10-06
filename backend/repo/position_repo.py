@@ -106,9 +106,7 @@ class PositionRepo(BaseRepo):
     async def delete_by_id(self, id: int) -> bool:
         try:
             response = self.db_client.table(self.table_name).delete().eq("id", id).execute()
-            if not response.data:
-                raise Exception("Failed to delete position")
+            return len(response.data) > 0
         except Exception as e:
             logger.error(f"Error deleting position: {e}")
             raise e
-        return True

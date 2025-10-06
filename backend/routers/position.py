@@ -55,16 +55,16 @@ async def patch_position(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error updating position: {e}")
 
 
-@router.delete("/{position_id}", response_model=PositionOut)
+@router.delete("/{position_id}")
 async def delete_position(
     position_id: int,
     current_user_id: int = Depends(get_current_user_id),  # 인증 필요
     position_usecase: PositionUsecase = Depends(get_position_usecase),
-) -> PositionOut:
+) -> dict:
     # TODO: position이 current_user의 portfolio에 속하는지 검증 필요
     try:
-        position = await position_usecase.delete_position(position_id)
-        return PositionOut(**position.model_dump())
+        success = await position_usecase.delete_position(position_id)
+        return {"success": success, "message": "Position deleted successfully"}
     except Exception as e:
         logger.error(f"Error deleting position: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error deleting position: {e}")
