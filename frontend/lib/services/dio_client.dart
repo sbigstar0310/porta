@@ -12,7 +12,6 @@ class DioClient {
   // 토큰 갱신 관련 필드들
   bool _isRefreshing = false;
   Completer<String?>? _refreshCompleter;
-  final List<RequestOptions> _failedRequests = [];
 
   // 싱글톤 패턴 구현
   static final DioClient _instance = DioClient._internal();
