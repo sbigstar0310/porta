@@ -24,6 +24,7 @@ Identify 3-5 new investment candidates by analyzing recent market news, trends, 
 2. **Immediate Termination**: Once you collect 3-5 candidates, STOP searching and return results immediately
 3. **No Re-searching**: If initial searches yield insufficient results, DO NOT search again - return whatever candidates you found
 4. **Quality over Quantity**: Better to return 3-5 solid candidates than to keep searching for more
+5. **Reliable Financial Sources**: When searching for stock information, prioritize these reputable financial websites for accurate and comprehensive data: investing.com, yahoo.finance.com, marketwatch.com, bloomberg.com. These sources provide reliable market data, earnings reports, analyst ratings, and breaking financial news that can help identify quality investment candidates.
 
 ## Response Guidelines
 
