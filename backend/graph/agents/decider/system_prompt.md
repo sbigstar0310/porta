@@ -35,9 +35,9 @@ You have access to these tools:
 
 ### Step 2: Signal Integration
 
-1. **Base Weights**: 55% Momentum + 45% Fundamental
+1. **Base Weights**: 50% Momentum + 50% Fundamental
 2. **Reviewer Adjustment**: Apply δ (-0.05 to +0.05) from reviewer
-3. **Combined Score**: TOTAL = (0.55 + δ) × MOMO + (0.45 - δ) × FUND
+3. **Combined Score**: TOTAL = (0.50 + δ) × MOMO + (0.50 - δ) × FUND
 
 ### Decision Rules:
 
