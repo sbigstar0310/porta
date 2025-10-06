@@ -173,16 +173,20 @@ class _PositionManageScreenState extends State<PositionManageScreen> {
       body: BlocConsumer<PositionBloc, PositionState>(
         listener: (context, state) {
           if (state is PositionLoaded && isEditMode) {
-            // 수정 모드에서 데이터 로드 완료 시 폼 필드 채우기
             final position = state.position;
             _tickerController.text = position.ticker;
             _sharesController.text = position.totalShares.toString();
             _priceController.text = position.avgBuyPrice.toString();
           } else if (state is PositionSuccess) {
-            // 성공 시 포트폴리오 새로고침하고 뒤로가기
             context.read<PortfolioBloc>().add(PortfolioLoadRequested());
             CustomSnackBar.showSuccess(context, message: state.message);
-            context.pop();
+
+            // pop할 수 있는지 확인 후 처리
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/');
+            }
           } else if (state is PositionError) {
             CustomSnackBar.showError(context, message: state.message);
           }
