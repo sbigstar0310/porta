@@ -53,3 +53,18 @@ def resend_verification_email(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error resending verification email: {e}"
         )
+
+
+@router.post("/refresh")
+def refresh_token(
+    refresh_token: str = Form(..., description="refresh token"),
+    user_usecase: UserUsecase = Depends(get_user_usecase),
+) -> UserOut:
+    try:
+        user = user_usecase.refresh_session(refresh_token=refresh_token)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="리프레시 세션 갱신에 실패했습니다.")
+        return user
+    except Exception as e:
+        logger.error(f"Error refreshing session: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error refreshing session: {e}")

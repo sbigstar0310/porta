@@ -16,7 +16,6 @@ class EmailNotVerifiedException(Exception):
     pass
 
 
-
 class UserUsecase:
     """
     사용자 관련 비즈니스 로직을 처리하는 UseCase 클래스
@@ -24,7 +23,6 @@ class UserUsecase:
     """
 
     def __init__(self, user_repo: UserRepo, portfolio_repo: PortfolioRepo, supabase_client: Client):
-
         """
         UserUsecase 초기화
 
@@ -34,7 +32,6 @@ class UserUsecase:
         self.user_repo = user_repo
         self.portfolio_repo = portfolio_repo
         self.supabase_client = supabase_client
-
 
     def get_user_profile(self, user_id: int) -> Optional[User]:
         """
@@ -94,7 +91,6 @@ class UserUsecase:
     async def register_user(
         self, email: str, password: str, timezone: str = "UTC", language: str = "ko"
     ) -> Optional[User]:
-
         """
         새 사용자를 등록합니다.
 
@@ -137,7 +133,6 @@ class UserUsecase:
                 logger.error(f"포트폴리오 생성 중 오류 발생: user_id={user.id}, error={portfolio_error}")
                 # 포트폴리오 생성 실패해도 사용자는 반환 (나중에 수동으로 생성 가능)
 
-
             return user
 
         except Exception as e:
@@ -174,7 +169,6 @@ class UserUsecase:
         return UserOut(**user_data)
 
     def login(self, email: str, password: str) -> Optional[UserOut]:
-
         """
         사용자 로그인
 
@@ -255,3 +249,45 @@ class UserUsecase:
         except Exception as e:
             logger.error(f"이메일 인증 메일 재발송 실패 (email: {email}): {e}")
             raise
+
+    def refresh_session(self, refresh_token: str) -> UserOut | None:
+        """
+        refresh session with refresh token
+
+        Args:
+            refresh_token: refresh token
+
+        Returns:
+            UserOut | None: user information and authentication token information
+        """
+        try:
+            # refresh session with refresh token
+            auth_response = self.supabase_client.auth.refresh_session(refresh_token)
+            if not auth_response.user:
+                logger.error(f"Supabase 인증 실패: 사용자 정보 없음 (refresh_token: {refresh_token})")
+                raise Exception("계정 정보를 찾을 수 없습니다. 고객센터에 문의해주세요.")
+        except Exception as e:
+            logger.error(f"Supabase 인증 실패: {e}")
+            raise
+
+        try:
+            # 2. DB에서 사용자 정보 조회
+            user_uuid = auth_response.user.id
+            user = self.user_repo.get_by_uuid(user_uuid)
+
+            if not user:
+                logger.error(f"DB에 사용자 정보 없음: UUID={user_uuid}")
+                raise Exception("계정 정보를 찾을 수 없습니다. 고객센터에 문의해주세요.")
+
+            # 3. 로그인 시간 업데이트
+            success = self.user_repo.update_last_login(user.id)
+            if not success:
+                logger.error(f"로그인 시간 업데이트 실패: user_id={user.id}")
+                raise Exception("로그인 시간 업데이트 실패. 고객센터에 문의해주세요.")
+
+            # 4. 응답 데이터 구성
+            return self._build_user_response(user, auth_response)
+
+        except Exception as e:
+            logger.error(f"리프레시 세션 처리 실패 (refresh_token: {refresh_token}): {e}")
+            return None
