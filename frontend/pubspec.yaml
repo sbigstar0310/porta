@@ -40,7 +40,8 @@ dependencies:
   equatable: ^2.0.5
 
   # HTTP client
-  http: ^1.2.2
+  dio: ^5.4.0
+  pretty_dio_logger: ^1.4.0
 
   # Local storage
   shared_preferences: ^2.3.2
