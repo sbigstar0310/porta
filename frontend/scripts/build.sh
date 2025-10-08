@@ -49,9 +49,20 @@ build_flutter() {
     $flutter_cmd config --enable-web
     
     echo "🏗️  Building Flutter web app..."
-    $flutter_cmd build web --profile \
-    --source-maps \
-    --no-wasm-dry-run
+    
+    # 환경 변수가 설정되어 있으면 dart-define으로 전달
+    if [ ! -z "$API_URL" ]; then
+        echo "📡 Using API_URL from environment: $API_URL"
+        $flutter_cmd build web --profile \
+        --source-maps \
+        --no-wasm-dry-run \
+        --dart-define=API_URL="$API_URL"
+    else
+        echo "⚠️  No API_URL environment variable found, using default"
+        $flutter_cmd build web --profile \
+        --source-maps \
+        --no-wasm-dry-run
+    fi
     
     # Check if build was successful
     if [ -d "build/web" ]; then
