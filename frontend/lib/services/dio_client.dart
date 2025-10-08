@@ -1,11 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:async';
 import 'storage_service.dart';
 
 class DioClient {
-  static const String baseUrl = 'http://localhost:8000';
+  // .env 파일에서 API_URL을 가져오고, 없으면 fallback URL 사용
+  static String get baseUrl => dotenv.env['API_URL'] ?? 'http://localhost:8000';
 
   late final Dio _dio;
 
