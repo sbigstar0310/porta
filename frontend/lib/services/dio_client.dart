@@ -8,12 +8,26 @@ import 'storage_service.dart';
 class DioClient {
   // .env 파일에서 API_URL을 가져오고, 없으면 fallback URL 사용
   static String get baseUrl {
-    final url =
-        dotenv.env['API_URL'] ??
-        const String.fromEnvironment(
-          'API_URL',
-          defaultValue: 'http://localhost:8000',
-        );
+    String url;
+
+    try {
+      // dotenv가 초기화된 경우에만 접근 시도
+      url =
+          dotenv.env['API_URL'] ??
+          const String.fromEnvironment(
+            'API_URL',
+            defaultValue: 'http://localhost:8000',
+          );
+    } catch (e) {
+      // dotenv가 초기화되지 않은 경우 환경 변수나 기본값 사용
+      url = const String.fromEnvironment(
+        'API_URL',
+        defaultValue: 'http://localhost:8000',
+      );
+      if (kDebugMode) {
+        print('⚠️  dotenv not initialized, using fallback: $e');
+      }
+    }
 
     if (kDebugMode) {
       print('🌐 API Base URL: $url');
