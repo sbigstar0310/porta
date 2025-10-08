@@ -49,7 +49,9 @@ build_flutter() {
     $flutter_cmd config --enable-web
     
     echo "🏗️  Building Flutter web app..."
-    $flutter_cmd build web --release
+    $flutter_cmd build web --profile \
+    --source-maps \
+    --no-wasm-dry-run
     
     # Check if build was successful
     if [ -d "build/web" ]; then
@@ -62,9 +64,19 @@ build_flutter() {
     fi
 }
 
+make_env() {
+    # check .env file exists
+    if [ ! -f ".env" ]; then
+        # make .env file
+        touch .env
+    fi
+}
+
 # Check if flutter is installed
 if ! command -v flutter &> /dev/null; then
     setup_flutter
+    # make .env file
+    make_env
     # Use the cloned Flutter
     build_flutter "../flutter/bin/flutter"
 else
