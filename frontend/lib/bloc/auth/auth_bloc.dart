@@ -27,7 +27,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
     try {
       final token = await StorageService.getAuthToken();
-      debugPrint('앱 초기화 - 저장된 토큰: $token');
 
       if (token != null && token != 'dummy_token') {
         _apiService.setAuthToken(token);
