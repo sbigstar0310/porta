@@ -25,13 +25,11 @@ class DioClient {
         defaultValue: 'http://localhost:8000',
       );
       if (kDebugMode) {
-        print('⚠️  dotenv not initialized, using fallback: $e');
+        debugPrint('⚠️  dotenv not initialized, using fallback: $e');
       }
     }
 
-    if (kDebugMode) {
-      print('🌐 API Base URL: $url');
-    }
+    debugPrint('🌐 API Base URL: $url');
 
     return url;
   }
