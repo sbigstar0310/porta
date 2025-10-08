@@ -45,9 +45,6 @@ build_flutter() {
     echo "🧹 Cleaning previous builds..."
     $flutter_cmd clean
     
-    echo "📦 Getting dependencies..."
-    $flutter_cmd pub get
-    
     echo "🌐 Enabling web platform..."
     $flutter_cmd config --enable-web
     
