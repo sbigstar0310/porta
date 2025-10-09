@@ -1,0 +1,23 @@
+# 개발 환경용 오버라이드 설정
+services:
+  # API 서버 - 개발 모드 설정
+  api:
+    command: ["uv", "run", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--log-level", "debug"]
+    environment:
+      - DEBUG=true
+    volumes:
+      - ./backend:/app:cached  # 개발 시 파일 변경 감지를 위한 캐시 모드
+
+  # Worker - 개발 모드 설정
+  worker:
+    command: ["uv", "run", "celery", "-A", "worker.worker.celery_app", "worker", "--loglevel=debug", "-Q", "agent,celery", "--pool=solo"]
+    environment:
+      - DEBUG=true
+
+  # Beat - 개발 모드 설정
+  beat:
+    command: ["uv", "run", "celery", "-A", "worker.worker.celery_app", "beat", "-S", "redbeat.RedBeatScheduler", "--loglevel=debug", "--max-interval=5"]
+    environment:
+      - DEBUG=true
+
+  # Flower - 메모리 절약을 위해 제거됨

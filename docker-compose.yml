@@ -1,0 +1,111 @@
+services:
+  # Redis 서버
+  redis:
+    image: redis:7-alpine
+    container_name: porta-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI 서버
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: porta-api
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - /app/.venv  # 가상환경은 컨테이너 내부에서만 유지
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+        reservations:
+          memory: 100M
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    command: ["uv", "run", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--log-level", "info"]
+
+  # Celery Worker
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: porta-worker
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - /app/.venv
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+        reservations:
+          memory: 80M
+    command: ["uv", "run", "celery", "-A", "worker.worker.celery_app", "worker", "--loglevel=info", "-Q", "agent,celery", "--concurrency=1"]
+
+  # Celery Beat (스케줄러)
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: porta-beat
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - /app/.venv
+    depends_on:
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 120M
+        reservations:
+          memory: 60M
+    command: ["uv", "run", "celery", "-A", "worker.worker.celery_app", "beat", "-S", "redbeat.RedBeatScheduler", "--loglevel=INFO", "--max-interval=10"]
+
+  # Flower (Celery 모니터링) - 메모리 절약을 위해 제거됨
+
+volumes:
+  redis_data:
+
+networks:
+  default:
+    name: porta-network
