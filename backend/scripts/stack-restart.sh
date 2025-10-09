@@ -48,6 +48,8 @@ show_help() {
     echo ""
     echo "옵션:"
     echo "  -h, --help        이 도움말을 표시합니다"
+    echo "  -d, --dev         개발 모드로 재시작합니다"
+    echo "  -p, --prod        프로덕션 모드로 재시작합니다 (기본값)"
     echo "  -b, --build       이미지를 다시 빌드합니다"
     echo "  --hard            완전 중지 후 재시작 (down -> up)"
     echo "  --soft            서비스만 재시작 (restart, 기본값)"
@@ -63,6 +65,7 @@ show_help() {
 SERVICE=""
 BUILD_FLAG=""
 RESTART_MODE="soft"
+MODE="prod"
 
 # 명령행 인수 파싱
 while [[ $# -gt 0 ]]; do
@@ -70,6 +73,14 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             show_help
             exit 0
+            ;;
+        -d|--dev)
+            MODE="dev"
+            shift
+            ;;
+        -p|--prod)
+            MODE="prod"
+            shift
             ;;
         -b|--build)
             BUILD_FLAG="--build"
@@ -104,7 +115,7 @@ fi
 
 # 컴포즈 파일 결정
 COMPOSE_FILES="-f docker-compose.yml"
-if [[ -f "docker-compose.override.yml" ]]; then
+if [[ "$MODE" == "dev" && -f "docker-compose.override.yml" ]]; then
     COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.override.yml"
 fi
 
@@ -140,6 +151,13 @@ if [[ "$RESTART_MODE" == "hard" ]]; then
         # 전체 스택 시작
         if $DOCKER_COMPOSE_CMD $COMPOSE_FILES up -d $BUILD_FLAG; then
             log_success "PORTA 스택이 성공적으로 재시작되었습니다!"
+            
+            # nginx DNS 캐시 갱신을 위한 추가 재시작
+            if $DOCKER_COMPOSE_CMD $COMPOSE_FILES ps nginx | grep -q "Up"; then
+                log_info "nginx DNS 캐시 갱신을 위해 재시작합니다..."
+                $DOCKER_COMPOSE_CMD $COMPOSE_FILES restart nginx
+                sleep 3
+            fi
         else
             log_error "스택 재시작에 실패했습니다."
             exit 1
