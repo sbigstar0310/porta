@@ -50,10 +50,13 @@ def setup_colored_logging():
 logger = setup_colored_logging()
 
 # 환경변수 로드
+# Docker 환경에서는 env_file로 환경변수가 자동 로드되므로 .env 파일 로드는 선택사항
 result = load_dotenv(dotenv_path="../.env")
 if not result:
-    logger.error("환경변수 로드 실패")
-    raise Exception("환경변수 로드 실패")
+    # Docker 환경에서는 env_file로 환경변수가 로드되므로 경고만 출력
+    logger.warning(".env 파일을 찾을 수 없습니다. Docker env_file 설정을 사용합니다.")
+else:
+    logger.info(".env 파일이 성공적으로 로드되었습니다.")
 
 
 # API KEYS
