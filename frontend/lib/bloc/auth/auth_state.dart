@@ -40,3 +40,12 @@ class AuthError extends AuthState {
   @override
   List<Object> get props => [message];
 }
+
+class AuthEmailVerificationSuccessState extends AuthState {
+  final String message;
+
+  const AuthEmailVerificationSuccessState(this.message);
+
+  @override
+  List<Object> get props => [message];
+}

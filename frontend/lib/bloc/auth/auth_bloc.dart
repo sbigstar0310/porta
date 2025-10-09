@@ -17,6 +17,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthUserFetched>(_onUserFetched);
     on<AuthDeleteRequested>(_onDeleteRequested);
+    on<AuthEmailVerificationSuccess>(_onEmailVerificationSuccess);
   }
 
   Future<void> _onInitialized(
@@ -234,5 +235,31 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       debugPrint('회원 탈퇴 오류 상세: $e');
       emit(AuthError('회원 탈퇴 실패: $e'));
     }
+  }
+
+  Future<void> _onEmailVerificationSuccess(
+    AuthEmailVerificationSuccess event,
+    Emitter<AuthState> emit,
+  ) async {
+    // 이메일 인증 성공 상태를 잠시 표시
+    emit(AuthEmailVerificationSuccessState(event.message));
+
+    // 2초 후 로그아웃 처리
+    await Future.delayed(const Duration(seconds: 2));
+
+    try {
+      // 백엔드 signout API 호출
+      await _apiService.signout();
+    } catch (e) {
+      debugPrint('로그아웃 API 호출 실패: $e');
+      // API 호출 실패해도 로컬 정리는 진행
+    }
+
+    // 로컬 저장소 정리
+    await StorageService.deleteAuthToken();
+    await StorageService.deleteRefreshToken();
+    await StorageService.deleteUserData();
+
+    emit(AuthUnauthenticated());
   }
 }

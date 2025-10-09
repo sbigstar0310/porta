@@ -39,3 +39,12 @@ class AuthLogoutRequested extends AuthEvent {}
 class AuthUserFetched extends AuthEvent {}
 
 class AuthDeleteRequested extends AuthEvent {}
+
+class AuthEmailVerificationSuccess extends AuthEvent {
+  final String message;
+
+  const AuthEmailVerificationSuccess({required this.message});
+
+  @override
+  List<Object> get props => [message];
+}

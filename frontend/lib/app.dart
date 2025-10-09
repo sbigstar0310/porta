@@ -13,6 +13,7 @@ import 'bloc/settings/settings_event.dart';
 import 'bloc/settings/settings_state.dart';
 import 'constants/colors.dart';
 import 'services/storage_service.dart';
+import 'services/dio_client.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/home_screen.dart';
@@ -32,6 +33,8 @@ class PortaApp extends StatefulWidget {
 }
 
 class _PortaAppState extends State<PortaApp> {
+  late AuthBloc _authBloc;
+
   @override
   void initState() {
     super.initState();
@@ -42,11 +45,25 @@ class _PortaAppState extends State<PortaApp> {
     await StorageService.init();
   }
 
+  void _setupEmailVerificationCallback(AuthBloc authBloc) {
+    _authBloc = authBloc;
+    // DioClient의 이메일 인증 성공 콜백 설정
+    DioClient.onEmailVerificationSuccess = (message) {
+      _authBloc.add(AuthEmailVerificationSuccess(message: message));
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (context) => AuthBloc()..add(AuthInitialized())),
+        BlocProvider(
+          create: (context) {
+            final authBloc = AuthBloc()..add(AuthInitialized());
+            _setupEmailVerificationCallback(authBloc);
+            return authBloc;
+          },
+        ),
         BlocProvider(create: (context) => PortfolioBloc()),
         BlocProvider(create: (context) => AgentBloc()),
         BlocProvider(create: (context) => PositionBloc()),

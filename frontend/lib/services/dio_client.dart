@@ -4,8 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:async';
 import 'storage_service.dart';
+import 'dart:convert';
 
 class DioClient {
+  // 이메일 인증 성공 콜백
+  static Function(String message)? onEmailVerificationSuccess;
+
   // .env 파일에서 API_URL을 가져오고, 없으면 fallback URL 사용
   static String get baseUrl {
     String url;
@@ -88,6 +92,8 @@ class DioClient {
       onError: (error, handler) async {
         if (error.response?.statusCode == 401) {
           await _handleUnauthorizedError(error, handler);
+        } else if (error.response?.statusCode == 403) {
+          await _handleForbiddenError(error, handler);
         } else {
           handler.next(error);
         }
@@ -222,6 +228,94 @@ class DioClient {
       // 재시도도 실패하면 원래 에러 전달
       debugPrint('토큰 갱신 후 재시도 실패: $e');
       handler.next(DioException(requestOptions: requestOptions, error: e));
+    }
+  }
+
+  /// 403 Forbidden 에러 처리 (이메일 인증 확인 포함)
+  Future<void> _handleForbiddenError(
+    DioException error,
+    ErrorInterceptorHandler handler,
+  ) async {
+    // 현재 사용자 정보 확인
+    final userData = await StorageService.getUserData();
+    if (userData != null) {
+      try {
+        final user = json.decode(userData);
+        final emailVerified = user['email_verified'] as bool? ?? false;
+
+        // 사용자의 emailVerified가 false인 경우에만 이메일 인증 확인 시도
+        if (!emailVerified) {
+          final isVerified = await _checkEmailVerification();
+          if (isVerified) {
+            // 인증이 완료된 경우 성공 알림 및 로그아웃 처리
+            await _handleEmailVerificationSuccess();
+            handler.next(error); // 원래 에러를 그대로 전달하여 로그아웃 처리
+            return;
+          }
+        }
+      } catch (e) {
+        debugPrint('사용자 데이터 파싱 오류: $e');
+      }
+    }
+
+    // 일반적인 403 에러 처리
+    handler.next(error);
+  }
+
+  /// 이메일 인증 상태 확인
+  Future<bool> _checkEmailVerification() async {
+    try {
+      debugPrint('이메일 인증 상태 확인 중...');
+
+      // 로컬 스토리지에서 사용자 이메일 가져오기
+      final userData = await StorageService.getUserData();
+      if (userData == null) {
+        debugPrint('로컬 사용자 데이터 없음');
+        return false;
+      }
+
+      final user = json.decode(userData);
+      final email = user['email'] as String?;
+      if (email == null || email.isEmpty) {
+        debugPrint('사용자 이메일 정보 없음');
+        return false;
+      }
+
+      // 새로운 Dio 인스턴스로 이메일 인증 상태 확인 (JWT 토큰 불필요)
+      final checkDio = Dio(BaseOptions(baseUrl: baseUrl));
+      final response = await checkDio.get(
+        '/auth/email-verification-status/$email',
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = response.data;
+        final emailVerified = responseData['email_verified'] as bool? ?? false;
+        final requiresRelogin =
+            responseData['requires_relogin'] as bool? ?? false;
+
+        if (emailVerified && requiresRelogin) {
+          // 로컬 저장소의 사용자 정보 업데이트
+          user['email_verified'] = true;
+          await StorageService.saveUserData(json.encode(user));
+          debugPrint('이메일 인증 완료 확인됨 - 재로그인 필요');
+          return true;
+        }
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('이메일 인증 상태 확인 실패: $e');
+      return false;
+    }
+  }
+
+  /// 이메일 인증 성공 처리
+  Future<void> _handleEmailVerificationSuccess() async {
+    debugPrint('이메일 인증 성공 - 로그아웃 처리 예정');
+
+    // 콜백을 통해 이메일 인증 성공 알림
+    if (DioClient.onEmailVerificationSuccess != null) {
+      DioClient.onEmailVerificationSuccess!('이메일 인증이 완료되었습니다. 다시 로그인해주세요.');
     }
   }
 
