@@ -39,10 +39,10 @@ def _last_ai_text(agent_out) -> str:
 
 
 def load_system_prompt():
-    with open(
-        "/Users/sbigstar/Desktop/Projects/porta/backend/graph/agents/" "reporter/system_prompt.md",
-        "r",
-    ) as f:
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    prompt_path = os.path.join(current_dir, "system_prompt.md")
+    with open(prompt_path, "r") as f:
         return Template(f.read())
 
 
