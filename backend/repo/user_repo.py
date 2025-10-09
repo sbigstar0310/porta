@@ -35,6 +35,9 @@ class UserRepo(BaseRepo):
                 {
                     "email": schema.email,
                     "password": schema.password,
+                    "options": {
+                        "email_redirect_to": "https://porta-rose.vercel.app/",
+                    },
                 }
             )
             logger.info(f"Supabase 기본 사용자 생성 결과: {basic_user}")

@@ -242,7 +242,7 @@ class UserUsecase:
                     "type": "signup",
                     "email": email,
                     "options": {
-                        "email_redirect_to": "https://example.com/welcome",
+                        "email_redirect_to": "https://porta-rose.vercel.app/",
                     },
                 }
             )
