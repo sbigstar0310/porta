@@ -10,8 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__ + "/..")))
 
 celery_app = Celery(
     "worker",
-    broker="redis://localhost:6379/0",
-    backend="redis://localhost:6379/0",
+    broker="redis://redis:6379/0",
+    backend="redis://redis:6379/0",
     include=["worker.tasks"],  # 태스크 파일 명시적으로 포함
 )
 
@@ -36,7 +36,7 @@ celery_app.conf.update(
     task_result_expires=3600,  # 1시간
     # beat 설정
     beat_scheduler="redbeat.RedBeatScheduler",
-    redbeat_redis_url="redis://localhost:6379/0",
+    redbeat_redis_url="redis://redis:6379/0",
     # timezone 설정
     timezone="UTC",
     enable_utc=True,
