@@ -68,3 +68,39 @@ def refresh_token(
     except Exception as e:
         logger.error(f"Error refreshing session: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error refreshing session: {e}")
+
+
+@router.get("/email-verification-status/{email}")
+def check_email_verification_status(
+    email: str,
+    user_usecase: UserUsecase = Depends(get_user_usecase),
+) -> dict:
+    """
+    이메일 인증 상태 확인 (JWT 토큰 불필요)
+    
+    Args:
+        email: 확인할 이메일 주소
+        
+    Returns:
+        dict: 인증 상태 정보
+    """
+    try:
+        # Supabase Auth에서 직접 이메일 인증 상태 확인
+        is_verified = user_usecase.check_email_verification_from_auth(email)
+        
+        return {
+            "email": email,
+            "email_verified": is_verified,
+            "requires_relogin": is_verified,  # 인증 완료되면 재로그인 필요
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"이메일 인증 상태 확인 실패 (email: {email}): {e}")
+        return {
+            "email": email,
+            "email_verified": False,
+            "requires_relogin": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }

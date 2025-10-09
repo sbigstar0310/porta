@@ -250,6 +250,39 @@ class UserUsecase:
             logger.error(f"이메일 인증 메일 재발송 실패 (email: {email}): {e}")
             raise
 
+    def check_email_verification_from_auth(self, email: str) -> bool:
+        """
+        Supabase Auth에서 직접 이메일 인증 상태 확인
+        
+        Args:
+            email: 확인할 이메일 주소
+            
+        Returns:
+            bool: 이메일 인증 완료 여부
+        """
+        try:
+            # Supabase Admin API를 사용하여 auth.users에서 직접 확인
+            from clients import get_supabase_admin_client
+            admin_client = get_supabase_admin_client()
+            
+            # auth.users 테이블에서 이메일로 사용자 조회
+            response = admin_client.auth.admin.list_users()
+            
+            for user in response:
+                if user.email == email:
+                    # email_confirmed_at이 있으면 인증 완료
+                    is_verified = user.email_confirmed_at is not None
+                    logger.info(f"Auth에서 이메일 인증 상태 확인: email={email}, verified={is_verified}")
+                    return is_verified
+            
+            # 사용자를 찾지 못한 경우
+            logger.warning(f"Auth에서 사용자를 찾을 수 없음: email={email}")
+            return False
+            
+        except Exception as e:
+            logger.error(f"Auth에서 이메일 인증 상태 확인 실패 (email: {email}): {e}")
+            return False
+
     def refresh_session(self, refresh_token: str) -> UserOut | None:
         """
         refresh session with refresh token
