@@ -153,7 +153,7 @@ class _AgentScreenState extends State<AgentScreen>
                     ),
                   if (state is AgentRunning && state.elapsedTime != null)
                     Text(
-                      '경과 시간: ${_formatDuration(state.elapsedTime!)}',
+                      '경과 시간 (예상시간 10분): ${_formatDuration(state.elapsedTime!)}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   if (state is AgentCompleted && state.elapsedTime != null)
