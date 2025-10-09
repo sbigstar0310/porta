@@ -57,7 +57,7 @@ services:
       - .env
     volumes:
       - ./backend:/app
-      - /app/.venv  # 가상환경은 컨테이너 내부에서만 유지
+      - api_venv:/app/.venv  # 명명된 볼륨으로 가상환경 유지
     depends_on:
       redis:
         condition: service_healthy
@@ -89,7 +89,7 @@ services:
       - .env
     volumes:
       - ./backend:/app
-      - /app/.venv
+      - worker_venv:/app/.venv
     depends_on:
       redis:
         condition: service_healthy
@@ -115,7 +115,7 @@ services:
       - .env
     volumes:
       - ./backend:/app
-      - /app/.venv
+      - beat_venv:/app/.venv
     depends_on:
       redis:
         condition: service_healthy
@@ -135,6 +135,9 @@ services:
 volumes:
   redis_data:
   nginx_logs:
+  api_venv:
+  worker_venv:
+  beat_venv:
 
 networks:
   default:
