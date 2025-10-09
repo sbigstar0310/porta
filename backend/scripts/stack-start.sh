@@ -39,8 +39,8 @@ show_help() {
     echo ""
     echo "옵션:"
     echo "  -h, --help        이 도움말을 표시합니다"
-    echo "  -d, --dev         개발 모드로 실행합니다 (기본값)"
-    echo "  -p, --prod        프로덕션 모드로 실행합니다"
+    echo "  -d, --dev         개발 모드로 실행합니다"
+    echo "  -p, --prod        프로덕션 모드로 실행합니다 (기본값)"
     echo "  -b, --build       이미지를 다시 빌드합니다"
     echo "  --no-flower       Flower 서비스를 제외합니다"
     echo "  --detach          백그라운드에서 실행합니다 (기본값)"
@@ -54,7 +54,7 @@ show_help() {
 }
 
 # 기본값 설정
-MODE="dev"
+MODE="prod"
 BUILD_FLAG=""
 DETACH_FLAG="-d"
 COMPOSE_FILES="-f docker-compose.yml"
@@ -157,8 +157,15 @@ if $DOCKER_COMPOSE_CMD $COMPOSE_FILES up $DETACH_FLAG $BUILD_FLAG $EXCLUDE_SERVI
         log_info "스택 중지: backend/scripts/stack-stop.sh"
         echo ""
         log_info "서비스 주소:"
-        log_info "  - API 서버: http://localhost:8000"
-        log_info "  - API 문서: http://localhost:8000/docs"
+        if [[ "$MODE" == "prod" ]]; then
+            log_info "  - 웹사이트: https://porta-ai.com"
+            log_info "  - API 문서: https://porta-ai.com/docs"
+            log_info "  - API 서버 (직접): http://localhost:8000"
+        else
+            log_info "  - 웹사이트: http://localhost"
+            log_info "  - API 서버: http://localhost:8000"
+            log_info "  - API 문서: http://localhost:8000/docs"
+        fi
         log_info "  - Flower (Celery 모니터링): http://localhost:5555"
     else
         log_info "스택이 종료되었습니다."

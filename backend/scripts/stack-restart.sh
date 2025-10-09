@@ -38,6 +38,7 @@ show_help() {
     echo "사용법: $0 [OPTIONS] [SERVICE]"
     echo ""
     echo "서비스:"
+    echo "  nginx             Nginx 리버스 프록시만 재시작"
     echo "  api               FastAPI 서버만 재시작"
     echo "  worker            Celery Worker만 재시작"
     echo "  beat              Celery Beat만 재시작"
@@ -83,7 +84,7 @@ while [[ $# -gt 0 ]]; do
             RESTART_MODE="soft"
             shift
             ;;
-        api|worker|beat|redis|flower)
+        nginx|api|worker|beat|redis|flower)
             SERVICE="$1"
             shift
             ;;
@@ -173,6 +174,14 @@ $DOCKER_COMPOSE_CMD $COMPOSE_FILES ps
 
 echo ""
 log_info "서비스 주소:"
-log_info "  - API 서버: http://localhost:8000"
-log_info "  - API 문서: http://localhost:8000/docs"
+# 프로덕션/개발 모드 확인
+if [[ "$COMPOSE_FILES" == *"override"* ]]; then
+    log_info "  - 웹사이트: http://localhost"
+    log_info "  - API 서버: http://localhost:8000"
+    log_info "  - API 문서: http://localhost:8000/docs"
+else
+    log_info "  - 웹사이트: https://porta-ai.com"
+    log_info "  - API 문서: https://porta-ai.com/docs"
+    log_info "  - API 서버 (직접): http://localhost:8000"
+fi
 log_info "  - Flower (Celery 모니터링): http://localhost:5555"

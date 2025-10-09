@@ -38,6 +38,7 @@ show_help() {
     echo "사용법: $0 [OPTIONS] [SERVICE]"
     echo ""
     echo "서비스:"
+    echo "  nginx             Nginx 리버스 프록시 로그"
     echo "  api               FastAPI 서버 로그"
     echo "  worker            Celery Worker 로그"
     echo "  beat              Celery Beat 로그"
@@ -95,7 +96,7 @@ while [[ $# -gt 0 ]]; do
             TIMESTAMPS_FLAG="-t"
             shift
             ;;
-        api|worker|beat|redis|flower)
+        nginx|api|worker|beat|redis|flower)
             SERVICE="$1"
             shift
             ;;

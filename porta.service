@@ -1,5 +1,5 @@
 [Unit]
-Description=PORTA Stack - Portfolio Analysis System
+Description=PORTA Stack - Portfolio Analysis System (API + Nginx + Workers)
 Documentation=https://github.com/your-repo/porta
 After=docker.service
 Requires=docker.service
