@@ -1,0 +1,39 @@
+[Unit]
+Description=PORTA Stack - Portfolio Analysis System
+Documentation=https://github.com/your-repo/porta
+After=docker.service
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/porta
+
+# 환경 변수
+Environment=COMPOSE_PROJECT_NAME=porta
+Environment=DOCKER_BUILDKIT=1
+
+# 시작 명령
+ExecStart=/home/ubuntu/porta/backend/scripts/stack-start.sh --prod --detach
+
+# 중지 명령
+ExecStop=/home/ubuntu/porta/backend/scripts/stack-stop.sh
+
+# 재시작 명령
+ExecReload=/home/ubuntu/porta/backend/scripts/stack-restart.sh --hard
+
+# 서비스 설정
+TimeoutStartSec=300
+TimeoutStopSec=60
+Restart=on-failure
+RestartSec=10
+
+# 보안 설정
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
