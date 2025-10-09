@@ -9,7 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS users (
     id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     email        VARCHAR(255) UNIQUE,
-    uuid         UUID NOT NULL DEFAULT uuid_generate_v4(),
+    uuid         UUID NOT NULL,
     email_verified BOOLEAN NOT NULL DEFAULT FALSE,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
