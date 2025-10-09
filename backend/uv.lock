@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -2332,6 +2332,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pytest" },
     { name = "python-dateutil" },
+    { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "redis" },
     { name = "resend" },
@@ -2365,6 +2366,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "python-dateutil", specifier = ">=2.8.2" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "redis", specifier = ">=6.4.0" },
     { name = "resend", specifier = ">=2.13.1" },
