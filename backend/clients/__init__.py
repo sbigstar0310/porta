@@ -13,6 +13,11 @@ def get_supabase_client() -> Client:
     return SupabaseClient().get_client()
 
 
+def get_supabase_admin_client() -> Client:
+    from .supabase_client import SupabaseAdminClient
+    return SupabaseAdminClient().get_client()
+
+
 def get_email_client() -> EmailClient:
     return EmailClient()
 

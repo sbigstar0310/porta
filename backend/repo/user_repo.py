@@ -4,6 +4,7 @@ from data.models import User
 import logging
 from .base_repo import BaseRepo
 from data.schemas import UserCreate, UserOut, UserPatch
+from clients import get_supabase_admin_client
 
 
 logger = logging.getLogger(__name__)
@@ -177,8 +178,9 @@ class UserRepo(BaseRepo):
             # delete public.users
             response = self.db_client.table(self.table_name).delete().eq("id", id).execute()
 
-            # delete auth.users
-            self.db_client.auth.admin.delete_user(user.uuid, should_soft_delete=True)
+            # delete auth.users (완전 삭제) - Admin 클라이언트 사용
+            admin_client = get_supabase_admin_client()
+            admin_client.auth.admin.delete_user(user.uuid, should_soft_delete=False)
 
             return len(response.data) > 0
         except Exception as e:
