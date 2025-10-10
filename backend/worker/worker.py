@@ -8,10 +8,13 @@ logger = logging.getLogger(__name__)
 # 현재 디렉토리를 Python 경로에 추가 (graph 모듈 등을 찾기 위해)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__ + "/..")))
 
+# Redis URL을 환경 변수에서 가져오기 (기본값: 로컬 개발용)
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
 celery_app = Celery(
     "worker",
-    broker="redis://redis:6379/0",
-    backend="redis://redis:6379/0",
+    broker=redis_url,
+    backend=redis_url,
     include=["worker.tasks"],  # 태스크 파일 명시적으로 포함
 )
 
@@ -36,7 +39,7 @@ celery_app.conf.update(
     task_result_expires=3600,  # 1시간
     # beat 설정
     beat_scheduler="redbeat.RedBeatScheduler",
-    redbeat_redis_url="redis://redis:6379/0",
+    redbeat_redis_url=redis_url,
     # timezone 설정
     timezone="UTC",
     enable_utc=True,
