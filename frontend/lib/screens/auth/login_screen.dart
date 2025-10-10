@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:async';
@@ -301,6 +302,7 @@ class _LoginScreenState extends State<LoginScreen> {
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
               autocorrect: false,
+              textInputAction: TextInputAction.next,
               style: TextStyle(
                 fontSize: 16,
                 color: isDark ? Colors.white : AppColors.neutralGray900,
@@ -330,6 +332,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 }
                 return null;
               },
+              onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
             ),
             const SizedBox(height: 20),
 
@@ -337,6 +340,7 @@ class _LoginScreenState extends State<LoginScreen> {
             TextFormField(
               controller: _passwordController,
               obscureText: _obscurePassword,
+              textInputAction: TextInputAction.done,
               style: TextStyle(
                 fontSize: 16,
                 color: isDark ? Colors.white : AppColors.neutralGray900,
@@ -378,6 +382,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 }
                 return null;
               },
+              onFieldSubmitted: (_) => _handleLogin(),
             ),
             const SizedBox(height: 32),
 

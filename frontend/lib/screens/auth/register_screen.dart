@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../bloc/auth/auth_bloc.dart';
@@ -210,6 +211,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
               autocorrect: false,
+              textInputAction: TextInputAction.next,
               style: TextStyle(
                 fontSize: 16,
                 color: isDark ? Colors.white : AppColors.neutralGray900,
@@ -239,29 +241,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 }
                 return null;
               },
-            ),
-            const SizedBox(height: 20),
-
-            // Name field (optional)
-            TextFormField(
-              controller: _nameController,
-              style: TextStyle(
-                fontSize: 16,
-                color: isDark ? Colors.white : AppColors.neutralGray900,
-              ),
-              decoration: InputDecoration(
-                labelText: '이름 (선택사항)',
-                prefixIcon: Icon(
-                  Icons.person_outline,
-                  color: isDark
-                      ? AppColors.neutralGray400
-                      : AppColors.neutralGray500,
-                ),
-                filled: true,
-                fillColor: isDark
-                    ? AppColors.darkSurfaceVariant
-                    : AppColors.neutralGray50,
-              ),
+              onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
             ),
             const SizedBox(height: 20),
 
@@ -269,6 +249,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             TextFormField(
               controller: _passwordController,
               obscureText: _obscurePassword,
+              textInputAction: TextInputAction.next,
               style: TextStyle(
                 fontSize: 16,
                 color: isDark ? Colors.white : AppColors.neutralGray900,
@@ -310,6 +291,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 }
                 return null;
               },
+              onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
             ),
             const SizedBox(height: 20),
 
@@ -358,6 +340,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 }
                 return null;
               },
+              onFieldSubmitted: (_) => _handleRegister(),
             ),
             const SizedBox(height: 32),
 
