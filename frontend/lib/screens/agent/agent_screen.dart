@@ -48,31 +48,36 @@ class _AgentScreenState extends State<AgentScreen>
   Widget build(BuildContext context) {
     return BlocBuilder<AgentBloc, AgentState>(
       builder: (context, state) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // Status card
-              _buildStatusCard(state),
-              const SizedBox(height: 24),
-
-              // Control buttons
-              _buildControlButtons(state),
-              const SizedBox(height: 24),
-
-              // Progress section
-              if (state is AgentRunning) ...[
-                _buildProgressSection(state),
+        return SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // Status card
+                _buildStatusCard(state),
                 const SizedBox(height: 24),
+
+                // Control buttons
+                _buildControlButtons(state),
+                const SizedBox(height: 24),
+
+                // Progress section
+                if (state is AgentRunning) ...[
+                  _buildProgressSection(state),
+                  const SizedBox(height: 24),
+                ],
+
+                // Results section: report_md Markdown 렌더링
+                if (state is AgentCompleted) _buildResultsSection(state),
+
+                // Error section
+                if (state is AgentError) _buildErrorSection(state),
+                if (state is AgentCancelled) _buildCancelledSection(state),
+
+                // 하단 패딩 추가
+                const SizedBox(height: 32),
               ],
-
-              // Results section: report_md Markdown 렌더링
-              if (state is AgentCompleted) _buildResultsSection(state),
-
-              // Error section
-              if (state is AgentError) _buildErrorSection(state),
-              if (state is AgentCancelled) _buildCancelledSection(state),
-            ],
+            ),
           ),
         );
       },
@@ -300,10 +305,7 @@ class _AgentScreenState extends State<AgentScreen>
             Text('실행 결과', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             if (reportMd != null) ...[
-              SizedBox(
-                height: 500,
-                child: Markdown(data: reportMd, selectable: true),
-              ),
+              MarkdownBody(data: reportMd, selectable: true),
             ] else ...[
               Container(
                 padding: const EdgeInsets.all(16),
