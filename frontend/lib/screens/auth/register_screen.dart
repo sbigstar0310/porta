@@ -23,14 +23,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
+  // 비밀번호 검증 상태
+  bool _hasMinLength = false;
+  bool _hasLetter = false;
+  bool _hasNumber = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_validatePassword);
+  }
+
   @override
   void dispose() {
+    _passwordController.removeListener(_validatePassword);
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _nameController.dispose();
     super.dispose();
   }
+
+  void _validatePassword() {
+    final password = _passwordController.text;
+    setState(() {
+      _hasMinLength = password.length >= 8;
+      _hasLetter = RegExp(r'[a-zA-Z]').hasMatch(password);
+      _hasNumber = RegExp(r'[0-9]').hasMatch(password);
+    });
+  }
+
+  bool get _isPasswordValid => _hasMinLength && _hasLetter && _hasNumber;
 
   void _handleRegister() {
     if (!_formKey.currentState!.validate()) return;
@@ -286,19 +309,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 if (value == null || value.isEmpty) {
                   return '비밀번호를 입력해주세요';
                 }
-                if (value.length < 6) {
-                  return '비밀번호는 6자 이상이어야 합니다';
+                if (!_isPasswordValid) {
+                  return '비밀번호 조건을 만족해주세요';
                 }
                 return null;
               },
               onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
             ),
+            const SizedBox(height: 12),
+
+            // 비밀번호 조건 안내
+            _buildPasswordRequirements(isDark),
             const SizedBox(height: 20),
 
             // Confirm password field
             TextFormField(
               controller: _confirmPasswordController,
               obscureText: _obscureConfirmPassword,
+              textInputAction: TextInputAction.done,
               style: TextStyle(
                 fontSize: 16,
                 color: isDark ? Colors.white : AppColors.neutralGray900,
@@ -433,6 +461,70 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPasswordRequirements(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.darkSurfaceVariant.withOpacity(0.5)
+            : AppColors.neutralGray50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? AppColors.neutralGray700 : AppColors.neutralGray200,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '비밀번호 조건',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: isDark
+                  ? AppColors.neutralGray300
+                  : AppColors.neutralGray700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildRequirementItem('최소 8자 이상', _hasMinLength, isDark),
+          const SizedBox(height: 4),
+          _buildRequirementItem('영문 포함', _hasLetter, isDark),
+          const SizedBox(height: 4),
+          _buildRequirementItem('숫자 포함', _hasNumber, isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRequirementItem(String text, bool isValid, bool isDark) {
+    return Row(
+      children: [
+        Icon(
+          isValid ? Icons.check_circle : Icons.radio_button_unchecked,
+          size: 16,
+          color: isValid
+              ? Colors.green
+              : (isDark ? AppColors.neutralGray500 : AppColors.neutralGray400),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 13,
+            color: isValid
+                ? (isDark ? Colors.green.shade300 : Colors.green.shade700)
+                : (isDark
+                      ? AppColors.neutralGray400
+                      : AppColors.neutralGray600),
+            fontWeight: isValid ? FontWeight.w500 : FontWeight.normal,
+          ),
+        ),
+      ],
     );
   }
 
