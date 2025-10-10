@@ -82,7 +82,7 @@
 
 - **역할**: Momo + Fund 점수 결합 → Risk 제약 반영 → Buy/Hold/Sell 결정
 - **결합식**:
-  `TOTAL = (0.55 + δ)·MOMO + (0.45 − δ)·FUND`
+  `TOTAL = (0.50 + δ)·MOMO + (0.50 − δ)·FUND`
   (δ: Reviewer 조정, 범위 ±0.05)
 - **룰 (업데이트)**
 
