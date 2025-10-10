@@ -12,6 +12,7 @@ from clients import get_cache_client
 
 def load_system_prompt():
     import os
+
     current_dir = os.path.dirname(os.path.abspath(__file__))
     prompt_path = os.path.join(current_dir, "system_prompt.md")
     with open(prompt_path, "r") as f:
@@ -71,7 +72,7 @@ def build_crawler_graph(llm_client):
                 new_candidates = getattr(structured_response, "new_candidates", [])
 
             # cache new_candidates
-            cache_client.set("crawler_new_candidates", new_candidates, ttl_seconds=60 * 60 * 24)
+            cache_client.set("crawler_new_candidates", new_candidates, ttl_seconds=60 * 60 * 1)
 
             return {
                 "new_candidates": new_candidates,
