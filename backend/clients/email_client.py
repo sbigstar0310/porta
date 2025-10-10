@@ -162,7 +162,7 @@ class EmailClient:
 
             # 첨부파일과 함께 이메일 발송
             email_data = {
-                "from": "Porta <porta@resend.dev>",
+                "from": "Porta <porta@porta-ai.com>",
                 "to": to,
                 "subject": subject,
                 "html": html_content,
