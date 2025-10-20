@@ -1,7 +1,7 @@
 # (Porta) LangGraph 기반 멀티-에이전트 투자 보고 시스템 설계 문서
 
 <details>
-<summary><strong>📚 0. 수동 시작 방법</strong></summary>
+<summary><strong><h2>0. 수동 시작 방법 (How to run on your local device)</h2></strong></summary>
 
 - 직접 수동(local)으로 애플리케이션을 구동하고 싶은 경우 아래 사항을 따라해주세요.
 
