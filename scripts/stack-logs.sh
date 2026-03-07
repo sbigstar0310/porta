@@ -4,7 +4,7 @@
 
 # 스크립트 디렉토리로 이동
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
 
 # 프로젝트 루트로 이동
 cd "$PROJECT_DIR" || exit 1
@@ -123,7 +123,7 @@ fi
 # 스택 상태 확인
 if ! $DOCKER_COMPOSE_CMD $COMPOSE_FILES ps -q | grep -q .; then
     log_error "실행 중인 PORTA 스택이 없습니다."
-    log_info "먼저 스택을 시작하세요: backend/scripts/stack-start.sh"
+    log_info "먼저 스택을 시작하세요: scripts/stack-start.sh"
     exit 1
 fi
 

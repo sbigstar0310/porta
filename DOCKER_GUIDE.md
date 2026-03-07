@@ -9,14 +9,15 @@ porta/
 ├── docker-compose.yml              # 메인 컴포즈 파일
 ├── docker-compose.override.yml     # 개발용 오버라이드
 ├── porta.service                   # systemd 서비스 파일
+├── scripts/
+│   ├── stack-start.sh              # 스택 시작
+│   ├── stack-stop.sh               # 스택 중지
+│   ├── stack-logs.sh               # 로그 확인
+│   ├── stack-restart.sh            # 스택 재시작
+│   ├── install-docker.sh           # Docker 설치
+│   └── install-systemd.sh          # systemd 설치
 ├── backend/
-│   ├── Dockerfile                  # 백엔드 이미지
-│   └── scripts/
-│       ├── stack-start.sh          # 스택 시작
-│       ├── stack-stop.sh           # 스택 중지
-│       ├── stack-logs.sh           # 로그 확인
-│       ├── stack-restart.sh        # 스택 재시작
-│       └── install-systemd.sh      # systemd 설치
+│   └── Dockerfile                  # 백엔드 이미지
 └── .env                           # 환경변수
 ```
 
@@ -25,38 +26,38 @@ porta/
 ### 1. 개발 모드로 시작
 ```bash
 # 개발 모드 (자동 리로드, 디버그 로그)
-./backend/scripts/stack-start.sh
+./scripts/stack-start.sh
 
 # 또는 포그라운드에서 실행 (로그 실시간 확인)
-./backend/scripts/stack-start.sh --foreground
+./scripts/stack-start.sh --foreground
 ```
 
 ### 2. 프로덕션 모드로 시작
 ```bash
-./backend/scripts/stack-start.sh --prod
+./scripts/stack-start.sh --prod
 ```
 
 ### 3. 로그 확인
 ```bash
 # 모든 서비스 로그 실시간 확인
-./backend/scripts/stack-logs.sh
+./scripts/stack-logs.sh
 
 # 특정 서비스 로그만 확인
-./backend/scripts/stack-logs.sh api
-./backend/scripts/stack-logs.sh worker
-./backend/scripts/stack-logs.sh beat
+./scripts/stack-logs.sh api
+./scripts/stack-logs.sh worker
+./scripts/stack-logs.sh beat
 ```
 
 ### 4. 스택 중지
 ```bash
-./backend/scripts/stack-stop.sh
+./scripts/stack-stop.sh
 ```
 
 ## 🛠️ 상세 사용법
 
 ### 스택 시작 옵션
 ```bash
-./backend/scripts/stack-start.sh [OPTIONS]
+./scripts/stack-start.sh [OPTIONS]
 
 옵션:
   -d, --dev         개발 모드 (기본값)
@@ -68,7 +69,7 @@ porta/
 
 ### 스택 중지 옵션
 ```bash
-./backend/scripts/stack-stop.sh [OPTIONS]
+./scripts/stack-stop.sh [OPTIONS]
 
 옵션:
   -v, --volumes     볼륨도 삭제 (Redis 데이터 삭제됨)
@@ -78,7 +79,7 @@ porta/
 
 ### 로그 확인 옵션
 ```bash
-./backend/scripts/stack-logs.sh [OPTIONS] [SERVICE]
+./scripts/stack-logs.sh [OPTIONS] [SERVICE]
 
 서비스: api, worker, beat, redis, flower
 옵션:
@@ -89,7 +90,7 @@ porta/
 
 ### 재시작 옵션
 ```bash
-./backend/scripts/stack-restart.sh [OPTIONS] [SERVICE]
+./scripts/stack-restart.sh [OPTIONS] [SERVICE]
 
 옵션:
   -b, --build       이미지 재빌드
@@ -102,10 +103,10 @@ porta/
 ### systemd 서비스 설치
 ```bash
 # 서비스 설치
-sudo ./backend/scripts/install-systemd.sh
+sudo ./scripts/install-systemd.sh
 
 # 서비스 설치 + 부팅 시 자동 시작 활성화
-sudo ./backend/scripts/install-systemd.sh --enable
+sudo ./scripts/install-systemd.sh --enable
 ```
 
 ### systemd 명령어
@@ -129,7 +130,7 @@ sudo systemctl enable porta
 sudo systemctl disable porta
 
 # 서비스 제거
-sudo ./backend/scripts/install-systemd.sh --uninstall
+sudo ./scripts/install-systemd.sh --uninstall
 ```
 
 ## 🌐 서비스 주소
@@ -153,7 +154,7 @@ docker stop $(docker ps -q --filter "ancestor=redis")
 ### 권한 문제 해결
 ```bash
 # 스크립트 실행 권한 부여
-chmod +x backend/scripts/*.sh
+chmod +x scripts/*.sh
 
 # Docker 그룹에 사용자 추가 (재로그인 필요)
 sudo usermod -aG docker $USER
@@ -162,7 +163,7 @@ sudo usermod -aG docker $USER
 ### 이미지 재빌드
 ```bash
 # 캐시 없이 완전 재빌드
-./backend/scripts/stack-start.sh --build
+./scripts/stack-start.sh --build
 
 # 또는 직접 Docker Compose 사용
 docker-compose build --no-cache
@@ -171,8 +172,8 @@ docker-compose build --no-cache
 ### 볼륨 초기화
 ```bash
 # 모든 데이터 삭제 후 재시작
-./backend/scripts/stack-stop.sh --volumes
-./backend/scripts/stack-start.sh
+./scripts/stack-stop.sh --volumes
+./scripts/stack-start.sh
 ```
 
 ## 📊 모니터링
@@ -197,20 +198,20 @@ docker stats
 ```bash
 # 개발 모드에서는 자동 리로드됨 (API 서버)
 # Worker/Beat는 재시작 필요
-./backend/scripts/stack-restart.sh worker
-./backend/scripts/stack-restart.sh beat
+./scripts/stack-restart.sh worker
+./scripts/stack-restart.sh beat
 ```
 
 ### 의존성 변경 시
 ```bash
 # 이미지 재빌드 필요
-./backend/scripts/stack-restart.sh --build
+./scripts/stack-restart.sh --build
 ```
 
 ### 환경변수 변경 시
 ```bash
 # .env 파일 수정 후 재시작
-./backend/scripts/stack-restart.sh --hard
+./scripts/stack-restart.sh --hard
 ```
 
 ## 🚨 주의사항

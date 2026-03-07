@@ -17,13 +17,13 @@ Environment=COMPOSE_PROJECT_NAME=porta
 Environment=DOCKER_BUILDKIT=1
 
 # 시작 명령
-ExecStart=/home/ubuntu/porta/backend/scripts/stack-start.sh --prod --detach
+ExecStart=/home/ubuntu/porta/scripts/stack-start.sh --prod --detach
 
 # 중지 명령
-ExecStop=/home/ubuntu/porta/backend/scripts/stack-stop.sh
+ExecStop=/home/ubuntu/porta/scripts/stack-stop.sh
 
 # 재시작 명령
-ExecReload=/home/ubuntu/porta/backend/scripts/stack-restart.sh --hard
+ExecReload=/home/ubuntu/porta/scripts/stack-restart.sh --hard
 
 # 서비스 설정
 TimeoutStartSec=300

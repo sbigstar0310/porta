@@ -4,7 +4,7 @@
 
 # 스크립트 디렉토리로 이동
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
 
 # 프로젝트 루트로 이동
 cd "$PROJECT_DIR" || exit 1
@@ -153,8 +153,8 @@ if $DOCKER_COMPOSE_CMD $COMPOSE_FILES up $DETACH_FLAG $BUILD_FLAG $EXCLUDE_SERVI
         log_success "PORTA 스택이 백그라운드에서 시작되었습니다!"
         echo ""
         log_info "서비스 상태 확인: $0 status"
-        log_info "로그 확인: backend/scripts/stack-logs.sh"
-        log_info "스택 중지: backend/scripts/stack-stop.sh"
+        log_info "로그 확인: scripts/stack-logs.sh"
+        log_info "스택 중지: scripts/stack-stop.sh"
         echo ""
         log_info "서비스 주소:"
         if [[ "$MODE" == "prod" ]]; then

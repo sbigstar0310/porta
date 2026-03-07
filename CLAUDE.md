@@ -40,11 +40,11 @@ flutter test                         # Run tests
 
 ### Docker Stack
 ```bash
-./backend/scripts/stack-start.sh             # Start dev
-./backend/scripts/stack-start.sh --prod      # Start production
-./backend/scripts/stack-stop.sh              # Stop
-./backend/scripts/stack-logs.sh [service]    # View logs (api, worker, beat, redis, nginx)
-./backend/scripts/stack-restart.sh           # Restart
+./scripts/stack-start.sh             # Start dev
+./scripts/stack-start.sh --prod      # Start production
+./scripts/stack-stop.sh              # Stop
+./scripts/stack-logs.sh [service]    # View logs (api, worker, beat, redis, nginx)
+./scripts/stack-restart.sh           # Restart
 ```
 
 ## Architecture
@@ -63,7 +63,7 @@ backend/
     llm_clients/  → LLM provider configurations
   worker/         → Celery app, tasks, config
   dependencies/   → FastAPI dependency injection (auth)
-  scripts/        → Server/stack management scripts
+  scripts/        → Backend dev server scripts (run-server, run-celery)
 ```
 
 ### Agent Pipeline Flow
