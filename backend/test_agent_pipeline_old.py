@@ -1442,13 +1442,8 @@ def test_pipeline(llm_client):
     try:
         print(f"🤖 LLM Client: {llm_client}")
 
-        # 그래프 빌드
-        graph = build_root_graph(
-            light_llm_client=llm_client,
-            middle_llm_client=llm_client,
-            heavy_llm_client=llm_client,
-            base_llm_client=llm_client,
-        )
+        # 그래프 빌드 (모든 tier에 동일 클라이언트를 주입)
+        graph = build_root_graph(llm_factory=lambda tier: llm_client)
         print("✅ 그래프 빌드 성공")
 
         # 파이프라인 실행
@@ -1537,8 +1532,8 @@ if __name__ == "__main__":
     # .env 로드 후에 LLM 클라이언트 임포트
     from graph.llm_clients.openai_client import get_openai_client
 
-    llm_client_mini = get_openai_client(model_name="gpt-5-mini")
-    llm_client_high = get_openai_client(model_name="gpt-5-nano")
+    llm_client_mini = get_openai_client("gpt-5-mini")
+    llm_client_high = get_openai_client("gpt-5-nano")
     # llm_client = mock_llm
 
     for agent_name in [

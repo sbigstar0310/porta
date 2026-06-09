@@ -39,7 +39,23 @@ from .agents.reporter.graph import (
     adapt_parent_to_reporter_in,
     adapt_reporter_to_parent_out,
 )
+from .llm_clients.openai_client import LLMTier, get_openai_client
 import json
+
+
+# 에이전트별 모델 tier. 한 줄만 바꾸면 해당 에이전트의 모델이 바뀐다.
+# (tier → 실제 모델명 매핑은 llm_clients/openai_client.py:TIER_MODELS 참고)
+# 배분 근거: 계산을 툴에 위임하거나 저stakes인 에이전트는 가벼운 tier,
+# 실제 판단(DECIDER)·사용자 대면 산출물(REPORTER)에만 최상위 tier를 쓴다.
+AGENT_TIERS: dict[str, LLMTier] = {
+    "CRAWLER": LLMTier.MIDDLE,  # 뉴스/후보 발굴 — 검색+요약, 하류 재채점으로 자정 (gpt-5.4-mini)
+    "MOMO": LLMTier.LIGHT,      # 모멘텀 — 툴이 전부 계산, LLM은 포맷터 (gpt-5.4-nano)
+    "FUND": LLMTier.MIDDLE,     # 펀더멘털 — 툴이 점수 계산, 인사이트만 서술 (gpt-5.4-mini)
+    "REVIEWER": LLMTier.LIGHT,  # 과거 성과 리뷰 — 저stakes, 대부분 디폴트 (gpt-5.4-nano)
+    "RISK": LLMTier.MIDDLE,     # 리스크 — 명시적 규칙/공식 실행, 입력 최대 (gpt-5.4-mini)
+    "DECIDER": LLMTier.MIDDLE,  # 최종 매수/매도/수량 — 판단 핵심이나 입력 100K라 heavy는 비효율, gpt-5.4-mini로 (gpt-5.4-mini)
+    "REPORTER": LLMTier.MIDDLE, # 사용자 대면 리포트 작성 — gpt-5.4-mini로 충분, 비용 절감 (gpt-5.4-mini)
+}
 
 
 def node_subgraph(subgraph, inbound, outbound):
@@ -70,17 +86,32 @@ def crawler_cache_key(node_input: dict) -> str:
     return json.dumps(key_obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
-def build_root_graph(light_llm_client, middle_llm_client, heavy_llm_client, base_llm_client):
-    """LLM 클라이언트를 주입받는 root graph 빌더"""
+def build_root_graph(llm_factory=get_openai_client):
+    """root graph 빌더.
+
+    AGENT_TIERS에 정의된 에이전트별 tier에 따라 필요한 LLM 클라이언트만 생성·재사용한다.
+    (현재 배분은 3개 tier(BASE/LIGHT/HEAVY)를 사용 → 클라이언트 3개만 생성된다.)
+
+    Args:
+        llm_factory: tier를 받아 클라이언트를 반환하는 팩토리. 테스트에서 mock 주입용으로 교체 가능.
+    """
+    _clients: dict[LLMTier, object] = {}
+
+    def client_for(node: str):
+        tier = AGENT_TIERS[node]
+        if tier not in _clients:
+            _clients[tier] = llm_factory(tier)
+        return _clients[tier]
+
     g = StateGraph(ParentState)
 
-    crawler = build_crawler_graph(light_llm_client)
-    momo = build_momo_graph(light_llm_client)
-    fund = build_fund_graph(light_llm_client)
-    reviewer = build_reviewer_graph(light_llm_client)
-    risk = build_risk_graph(light_llm_client)
-    decider = build_decider_graph(light_llm_client)
-    reporter = build_reporter_graph(light_llm_client)
+    crawler = build_crawler_graph(client_for("CRAWLER"))
+    momo = build_momo_graph(client_for("MOMO"))
+    fund = build_fund_graph(client_for("FUND"))
+    reviewer = build_reviewer_graph(client_for("REVIEWER"))
+    risk = build_risk_graph(client_for("RISK"))
+    decider = build_decider_graph(client_for("DECIDER"))
+    reporter = build_reporter_graph(client_for("REPORTER"))
 
     g.add_node(
         "CRAWLER",

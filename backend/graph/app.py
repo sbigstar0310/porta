@@ -4,7 +4,6 @@ import os
 from graph.schemas import ParentState
 from datetime import datetime
 from data.schemas import PortfolioOut
-from graph.llm_clients.openai_client import get_openai_client
 import logging
 import time
 from langchain_core.runnables.config import RunnableConfig
@@ -39,25 +38,11 @@ def run_graph(portfolio: PortfolioOut, user_id: int, language: str = "ko", debug
     # activate langsmith
     activate_langsmith()
 
-    # llm client
-    light_llm_client = get_openai_client(model_name="gpt-5-mini")
-    middle_llm_client = get_openai_client(model_name="gpt-5")
-    heavy_llm_client = get_openai_client(model_name="gpt-5")
-    base_llm_client = get_openai_client(model_name="gpt-5-nano")
+    # build root graph (에이전트별 모델 tier는 root_graph.AGENT_TIERS에서 관리)
+    app = build_root_graph()
 
     if debug:
-        logger.info("🤖 LLM 클라이언트 초기화 완료")
-
-    # build root graph
-    app = build_root_graph(
-        light_llm_client=light_llm_client,
-        middle_llm_client=middle_llm_client,
-        heavy_llm_client=heavy_llm_client,
-        base_llm_client=base_llm_client,
-    )
-
-    if debug:
-        logger.info("📊 그래프 빌드 완료")
+        logger.info("🤖 LLM 클라이언트 초기화 및 그래프 빌드 완료")
 
     # initial state
     initial_state: ParentState = ParentState(
