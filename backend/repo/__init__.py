@@ -1,7 +1,6 @@
 # Repository Layer Dependency Injection
 from supabase import Client
-from clients import get_stock_client
-from data.db import Database
+from clients import get_stock_client, get_supabase_admin_client
 
 from .user_repo import UserRepo
 from .portfolio_repo import PortfolioRepo
@@ -14,10 +13,14 @@ from .schedule_repo import ScheduleRepo
 # Database 의존성 주입
 def get_db_client() -> Client:
     """
-    Supabase 클라이언트를 반환하는 의존성 주입 함수
+    데이터 계층(Repository)용 Supabase 클라이언트를 반환한다.
+
+    백엔드는 자체 JWT 인증(get_current_user_id)으로 접근을 통제하고 쿼리에
+    user_id 를 명시하므로, 데이터 R/W 는 service_role 키(admin 클라이언트)를
+    사용해 RLS 를 우회한다. 인증(GoTrue) 작업은 별도로 anon 키(SUPABASE_KEY)를
+    쓰는 get_supabase_client() 를 사용한다.
     """
-    db = Database()
-    return db.client
+    return get_supabase_admin_client()
 
 
 # Repository 팩토리 함수들

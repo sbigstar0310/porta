@@ -37,7 +37,7 @@ class UserRepo(BaseRepo):
                     "email": schema.email,
                     "password": schema.password,
                     "options": {
-                        "email_redirect_to": "https://porta-rose.vercel.app/",
+                        "email_redirect_to": "https://porta-ai.com/login",
                     },
                 }
             )
