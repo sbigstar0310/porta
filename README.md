@@ -28,7 +28,8 @@ LANGSMITH_API_KEY="ls__your-langsmith-api-key"
 
 # Supabase (필수 - 데이터베이스 & 인증)
 SUPABASE_URL="https://your-project-id.supabase.co"
-SUPABASE_KEY="your-supabase-anon-key"
+SUPABASE_KEY="your-supabase-anon-key"              # anon public 키 (인증/GoTrue용)
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"  # service_role 키 (데이터 계층, RLS 우회)
 
 # Resend (필수 - 이메일 발송)
 RESEND_API_KEY="re_your-resend-api-key"
@@ -86,7 +87,9 @@ flutter run
 ### 🔧 4단계: Supabase 데이터베이스 설정
 
 1. [Supabase 대시보드](https://supabase.com/dashboard)에서 새 프로젝트 생성
-2. **SQL Editor**에서 다음 파일 내용을 순서대로 실행:
+2. **SQL Editor**에서 `backend/data/sql_history/supabase_init.sql` 내용을 붙여넣고 실행 (테이블 + 트리거 일괄 생성)
+3. **Settings → API**에서 `Project URL`, `anon public` 키, `service_role` 키를 복사해 위 `.env`에 입력
+4. (이메일 인증 사용 시) **Authentication → URL Configuration**에 Site URL/Redirect URL 설정, **SMTP Settings**에 Resend 연동
 </details>
 
 ## 1. 프로젝트 개요
@@ -134,6 +137,7 @@ flutter run
 - **백그라운드 작업**: Celery + Redis
 - **외부 API**: Yahoo Finance (주식 데이터), DuckDuckGo (웹 검색)
 - **이메일**: Resend + WeasyPrint (PDF 생성)
+- **인프라**: Docker Compose, Nginx (리버스 프록시 + Flutter web 정적 서빙, API는 `/api`)
 
 ---
 
@@ -144,7 +148,7 @@ flutter run
 
 ## 5. 데이터 모델 (DB 스키마)
 
-자세한 DB 스키마는 `backend/data/sql_history/latest.sql` 파일을 참고하세요.
+자세한 DB 스키마는 `backend/data/sql_history/supabase_init.sql` 파일을 참고하세요 (신규 Supabase 프로젝트 초기화용 통합 스크립트).
 
 **주요 테이블:**
 

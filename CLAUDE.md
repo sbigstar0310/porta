@@ -104,6 +104,7 @@ Format: `[type:scope] Description`
 - Authentication via Supabase JWT, injected with `Depends(get_current_user_id)`
 - Async throughout (AsyncIO + SQLAlchemy async)
 - API docs available at `http://localhost:8000/docs` (Swagger)
+- Supabase clients (`clients/supabase_client.py`): auth ops (sign-in/up) use the **anon** key (`SUPABASE_KEY`); data repos use the **service_role** key (`SUPABASE_SERVICE_ROLE_KEY`) via `get_supabase_admin_client()` — `repo/__init__.py:get_db_client()` returns the admin client to bypass RLS, since the backend enforces auth itself. Do not set the two keys equal.
 
 ### Frontend Patterns
 - BLoC for all state management (Events → Bloc → States)
@@ -113,7 +114,7 @@ Format: `[type:scope] Description`
 
 ## Environment Variables (root .env)
 
-Required: `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY`, `RESEND_API_KEY`, `REDIS_URL`
+Required: `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY` (anon), `SUPABASE_SERVICE_ROLE_KEY` (service_role — data layer/RLS bypass), `RESEND_API_KEY`, `REDIS_URL`
 Optional: `LANGSMITH_API_KEY` (agent tracing), `ANTHROPIC_API_KEY`
 
 ## Test Markers (pytest)
