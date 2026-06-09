@@ -1,0 +1,11 @@
+# Build context exclusions (used when building from repo root, e.g. nginx image)
+.git
+.github
+documents
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.log
+frontend/build
+frontend/.dart_tool
+node_modules

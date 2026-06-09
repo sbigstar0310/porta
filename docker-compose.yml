@@ -14,11 +14,11 @@ services:
       timeout: 5s
       retries: 5
 
-  # Nginx 리버스 프록시
+  # Nginx 리버스 프록시 + Flutter web 정적 서빙
   nginx:
     build:
-      context: ./nginx
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: nginx/Dockerfile
     container_name: porta-nginx
     ports:
       - "80:80"
