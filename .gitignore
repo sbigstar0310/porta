@@ -147,6 +147,9 @@ venv.bak/
 .spyderproject
 .spyproject
 
+# Local-only documents (운영 런북, 서버 IP/SSH 등 민감 정보 — public repo 제외)
+local_documents/
+
 # Rope project settings
 .ropeproject
 
