@@ -87,7 +87,7 @@ flutter run
 ### 🔧 4단계: Supabase 데이터베이스 설정
 
 1. [Supabase 대시보드](https://supabase.com/dashboard)에서 새 프로젝트 생성
-2. **SQL Editor**에서 `backend/data/sql_history/supabase_init.sql` 내용을 붙여넣고 실행 (테이블 + 트리거 일괄 생성)
+2. **SQL Editor**에서 `backend/data/sql_history/latest.sql` 내용을 붙여넣고 실행 (테이블 + 트리거 일괄 생성, 재실행 안전)
 3. **Settings → API**에서 `Project URL`, `anon public` 키, `service_role` 키를 복사해 위 `.env`에 입력
 4. (이메일 인증 사용 시) **Authentication → URL Configuration**에 Site URL/Redirect URL 설정, **SMTP Settings**에 Resend 연동
 </details>
@@ -148,7 +148,7 @@ flutter run
 
 ## 5. 데이터 모델 (DB 스키마)
 
-자세한 DB 스키마는 `backend/data/sql_history/supabase_init.sql` 파일을 참고하세요 (신규 Supabase 프로젝트 초기화용 통합 스크립트).
+자세한 DB 스키마는 `backend/data/sql_history/latest.sql` 파일을 참고하세요 (신규 Supabase 프로젝트 초기화용 정본 스크립트).
 
 **주요 테이블:**
 
