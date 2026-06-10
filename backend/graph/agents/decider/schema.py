@@ -6,6 +6,7 @@ from data.schemas import PortfolioOut
 
 class Decision(BaseModel):
     ticker: str
+    company_name: str = ""  # 보고서 표기용 회사명 (예: "Apple Inc.")
     action: str  # 'BUY' | 'SELL' | 'HOLD' | 'TRIM'
     target_weight_pct: float
     current_weight_pct: float
@@ -47,6 +48,7 @@ class DeciderState(BaseModel):
     review_note: Dict[str, Any]
     risk_note: Dict[str, Any]
     market_regime: Dict[str, Any] = {}
+    language: str = "ko"
     decisions: List[Decision] | None = None  # 출력: 매매 결정들
     final_portfolio: PortfolioOut | None = None  # 출력: 최종 포트폴리오
     risk_end: bool = False

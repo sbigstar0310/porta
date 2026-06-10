@@ -8,10 +8,10 @@ _생성일시 / Generated: {{ asof }}_
 
 ## 포트폴리오 변경사항 / Portfolio Changes
 
-| 액션/Action | 티커/Ticker | 목표비중/Target % | 현재비중/Current % | 수량/Shares | 금액/Value |
-| ----------- | ----------- | ----------------- | ------------------ | ----------- | ---------- |
+| 액션/Action | 종목/Stock | 목표비중/Target % | 현재비중/Current % | 수량/Shares | 금액/Value |
+| ----------- | ---------- | ----------------- | ------------------ | ----------- | ---------- |
 {% for d in decisions -%}
-| {{ d.action }} | {{ d.ticker }} | {{ "%.1f"|format(d.target_weight_pct) }}% | {{ "%.1f"|format(d.current_weight_pct) }}% | {{ "%+.4g"|format(d.shares_to_trade) if d.shares_to_trade else "-" }} | {{ "${:+,.2f}".format(d.trade_value) if d.trade_value else "-" }} |
+| {{ d.action }} | {% if d.get("company_name") %}{{ d.company_name }} ({{ d.ticker }}){% else %}{{ d.ticker }}{% endif %} | {{ "%.1f"|format(d.target_weight_pct) }}% | {{ "%.1f"|format(d.current_weight_pct) }}% | {{ "%+.4g"|format(d.shares_to_trade) if d.shares_to_trade else "-" }} | {{ "${:+,.2f}".format(d.trade_value) if d.trade_value else "-" }} |
 {% endfor %}
 {% if final_portfolio %}
 {% if language == "ko" -%}
@@ -24,7 +24,7 @@ _생성일시 / Generated: {{ asof }}_
 ## 종목 분석 / Stock Analysis
 
 {% for d in decisions %}
-### {{ d.ticker }} - {{ d.action }}
+### {% if d.get("company_name") %}{{ d.company_name }} ({{ d.ticker }}){% else %}{{ d.ticker }}{% endif %} - {{ d.action }}
 
 - **종합점수/Combined Score**: {{ "%.0f"|format(d.total_score) }}/100 (모멘텀/Momentum: {{ "%.0f"|format(d.momo_score) }}, 펀더멘털/Fundamental: {{ "%.0f"|format(d.fund_score) }})
 - **결정/Decision**: {{ d.action }}

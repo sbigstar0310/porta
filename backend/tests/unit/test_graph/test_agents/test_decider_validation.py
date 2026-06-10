@@ -164,6 +164,30 @@ class TestBuildValidatedDecisions:
         assert decisions[0].shares_to_trade == 0.0
         assert any("실적 발표 임박" in note for note in decisions[0].risk_notes)
 
+    def test_system_notes_follow_language(self, portfolio, prices):
+        decisions, _ = build_validated_decisions(
+            [make_decision("AAPL", "BUY", target_weight_pct=60.0)],
+            portfolio,
+            prices,
+            {},
+            {},
+            earnings_blackout={"AAPL": "2026-06-12"},
+            language="en",
+        )
+        assert any("Earnings imminent" in note for note in decisions[0].risk_notes)
+        assert not any("실적 발표" in note for note in decisions[0].risk_notes)
+
+    def test_company_name_attached_to_decision(self, portfolio, prices):
+        decisions, _ = build_validated_decisions(
+            [make_decision("AAPL", "HOLD")],
+            portfolio,
+            prices,
+            {},
+            {},
+            company_names={"AAPL": "Apple Inc."},
+        )
+        assert decisions[0].company_name == "Apple Inc."
+
     def test_earnings_blackout_does_not_affect_sells(self, portfolio, prices):
         decisions, _ = build_validated_decisions(
             [make_decision("TSLA", "SELL")],

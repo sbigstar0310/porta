@@ -26,6 +26,37 @@ MIN_SHARES = 1e-9  # 부동소수점 오차로 남는 잔여 수량 제거용
 MAX_ADJUSTMENT = 0.15  # 리뷰어 가중치 조정(δ) 허용 범위 → 가중치 35/65 ~ 65/35
 EARNINGS_BLACKOUT_DAYS = 3  # 실적 발표가 이 일수 이내면 매수 보류
 
+# 시스템이 결정에 덧붙이는 노트 (사용자 언어로 보고서에 그대로 노출됨)
+SYSTEM_NOTES = {
+    "ko": {
+        "unknown_action": "알 수 없는 액션 '{action}' → HOLD로 처리",
+        "earnings_blackout": "실적 발표 임박({date}) → 매수 보류",
+        "price_unavailable": "시세 조회 실패로 거래 보류 → HOLD",
+        "trim_noop": "TRIM 목표 비중이 현재 비중 이상 → 거래 없음",
+        "buy_noop": "BUY 목표 비중이 현재 비중 이하 → 거래 없음",
+        "buy_canceled": "가용 현금 부족(현금 바닥 유지)으로 매수 취소 → HOLD",
+        "buy_scaled": "가용 현금 한도에 맞춰 매수 수량 {scale_pct:.0f}%로 축소",
+        "momo_missing": "모멘텀 점수 누락",
+        "fund_missing": "펀더멘털 점수 누락",
+    },
+    "en": {
+        "unknown_action": "Unknown action '{action}' → treated as HOLD",
+        "earnings_blackout": "Earnings imminent ({date}) → buy deferred",
+        "price_unavailable": "Price unavailable → trade deferred (HOLD)",
+        "trim_noop": "TRIM target weight is at or above current → no trade",
+        "buy_noop": "BUY target weight is at or below current → no trade",
+        "buy_canceled": "Insufficient available cash (cash floor) → buy canceled (HOLD)",
+        "buy_scaled": "Buy size reduced to {scale_pct:.0f}% to fit available cash",
+        "momo_missing": "Momentum score missing",
+        "fund_missing": "Fundamental score missing",
+    },
+}
+
+
+def _note(language: str, key: str, **kwargs) -> str:
+    notes = SYSTEM_NOTES.get(language, SYSTEM_NOTES["ko"])
+    return notes[key].format(**kwargs)
+
 
 @dataclass
 class TradeIntent:
@@ -59,6 +90,8 @@ def build_validated_decisions(
     adjustment: float = 0.0,
     cash_floor_pct: float = 5.0,
     earnings_blackout: Optional[Dict[str, str]] = None,
+    language: str = "ko",
+    company_names: Optional[Dict[str, str]] = None,
 ) -> Tuple[List[Decision], PortfolioOut]:
     """LLM 결정을 실제 포트폴리오 기준으로 검증·클램프하고 최종 포트폴리오를 재계산한다.
 
@@ -72,16 +105,19 @@ def build_validated_decisions(
     # 1. 거래 의도 생성 (티커당 1건, 중복은 마지막 결정 사용)
     intents: Dict[str, TradeIntent] = {}
     for raw in llm_decisions:
-        intent = _build_intent(raw, portfolio, prices, total_value, earnings_blackout or {})
+        intent = _build_intent(raw, portfolio, prices, total_value, earnings_blackout or {}, language)
         if intent:
             intents[intent.ticker] = intent
 
     # 2. 현금 제약 적용
-    _cap_buys_to_budget(list(intents.values()), float(portfolio.cash), total_value, cash_floor_pct)
+    _cap_buys_to_budget(list(intents.values()), float(portfolio.cash), total_value, cash_floor_pct, language)
 
     # 3. Decision 변환 + 4. 최종 포트폴리오 계산
     delta = _clamp(adjustment, -MAX_ADJUSTMENT, MAX_ADJUSTMENT)
-    decisions = [_to_decision(i, momo_by_ticker, fund_by_ticker, delta, total_value) for i in intents.values()]
+    decisions = [
+        _to_decision(i, momo_by_ticker, fund_by_ticker, delta, total_value, language, company_names or {})
+        for i in intents.values()
+    ]
     final_portfolio = _apply_intents(portfolio, intents, prices)
     return decisions, final_portfolio
 
@@ -95,6 +131,7 @@ def _build_intent(
     prices: Dict[str, float],
     total_value: float,
     earnings_blackout: Dict[str, str],
+    language: str,
 ) -> Optional[TradeIntent]:
     """LLM 결정 1건을 검증해 거래 의도로 변환한다. 의미 없는 결정은 None으로 폐기."""
     ticker = str(raw.get("ticker", "")).upper().strip()
@@ -104,12 +141,12 @@ def _build_intent(
     action = str(raw.get("action", "HOLD")).upper().strip()
     notes = [str(n) for n in raw.get("risk_notes", [])]
     if action not in VALID_ACTIONS:
-        notes.append(f"알 수 없는 액션 '{action}' → HOLD로 처리")
+        notes.append(_note(language, "unknown_action", action=action))
         action = "HOLD"
 
     # 실적 발표 임박 종목은 매수 보류 (코드 강제 — LLM이 무시해도 막힘)
     if action == "BUY" and ticker in earnings_blackout:
-        notes.append(f"실적 발표 임박({earnings_blackout[ticker]}) → 매수 보류")
+        notes.append(_note(language, "earnings_blackout", date=earnings_blackout[ticker]))
         action = "HOLD"
 
     position = next((p for p in portfolio.positions if p.ticker == ticker), None)
@@ -126,12 +163,12 @@ def _build_intent(
         if held <= MIN_SHARES:
             logger.warning(f"Dropping BUY decision for {ticker}: price unavailable")
             return None
-        notes.append("시세 조회 실패로 거래 보류 → HOLD")
+        notes.append(_note(language, "price_unavailable"))
         action, price = "HOLD", 0.0
 
     current_weight = held * price / total_value * 100.0
     target_weight = float(raw.get("target_weight_pct") or current_weight)
-    delta_shares = _delta_shares(action, target_weight, current_weight, held, price, total_value, notes)
+    delta_shares = _delta_shares(action, target_weight, current_weight, held, price, total_value, notes, language)
 
     # 거래가 발생하지 않는 BUY/TRIM은 HOLD로 표기 (보고서 혼란 방지)
     if action in ("BUY", "TRIM") and delta_shares == 0.0:
@@ -158,6 +195,7 @@ def _delta_shares(
     price: float,
     total_value: float,
     notes: List[str],
+    language: str,
 ) -> float:
     """액션과 목표 비중을 실제 거래 수량으로 변환한다. 매도는 보유 수량까지만 허용."""
     if action == "HOLD" or price <= 0:
@@ -168,13 +206,13 @@ def _delta_shares(
     shares = (target_weight - current_weight) / 100.0 * total_value / price
     if action == "TRIM":
         if shares >= 0:
-            notes.append("TRIM 목표 비중이 현재 비중 이상 → 거래 없음")
+            notes.append(_note(language, "trim_noop"))
             return 0.0
         return max(shares, -held)
 
     # BUY
     if shares <= 0:
-        notes.append("BUY 목표 비중이 현재 비중 이하 → 거래 없음")
+        notes.append(_note(language, "buy_noop"))
         return 0.0
     return shares
 
@@ -187,6 +225,7 @@ def _cap_buys_to_budget(
     cash: float,
     total_value: float,
     cash_floor_pct: float,
+    language: str,
 ) -> None:
     """매도 대금을 반영한 가용 현금 안으로 매수 총액을 비례 축소한다 (현금 바닥 유지)."""
     sell_proceeds = -sum(i.trade_value for i in intents if i.trade_value < 0)
@@ -198,11 +237,11 @@ def _cap_buys_to_budget(
     scale = budget / buy_total
     for intent in [i for i in intents if i.is_buy]:
         if scale <= 0:
-            intent.notes.append("가용 현금 부족(현금 바닥 유지)으로 매수 취소 → HOLD")
+            intent.notes.append(_note(language, "buy_canceled"))
             intent.action = "HOLD"
             intent.delta_shares = 0.0
         else:
-            intent.notes.append(f"가용 현금 한도에 맞춰 매수 수량 {scale * 100:.0f}%로 축소")
+            intent.notes.append(_note(language, "buy_scaled", scale_pct=scale * 100))
             intent.delta_shares *= scale
 
 
@@ -215,14 +254,16 @@ def _to_decision(
     fund_by_ticker: Dict[str, float],
     delta: float,
     total_value: float,
+    language: str,
+    company_names: Dict[str, str],
 ) -> Decision:
     """점수를 ground-truth로 재계산해 Decision을 만든다."""
     momo = momo_by_ticker.get(intent.ticker)
     fund = fund_by_ticker.get(intent.ticker)
     if momo is None:
-        intent.notes.append("모멘텀 점수 누락")
+        intent.notes.append(_note(language, "momo_missing"))
     if fund is None:
-        intent.notes.append("펀더멘털 점수 누락")
+        intent.notes.append(_note(language, "fund_missing"))
     momo, fund = float(momo or 0.0), float(fund or 0.0)
 
     final_shares = intent.held_shares + intent.delta_shares
@@ -230,6 +271,7 @@ def _to_decision(
 
     return Decision(
         ticker=intent.ticker,
+        company_name=company_names.get(intent.ticker, ""),
         action=intent.action,
         target_weight_pct=round(final_weight, 2),
         current_weight_pct=round(intent.current_weight_pct, 2),

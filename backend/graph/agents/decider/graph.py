@@ -30,6 +30,21 @@ def _fetch_earnings_blackout(tickers: list[str]) -> dict[str, str]:
         return {}
 
 
+def _fetch_company_names(tickers: list[str], new_candidates: list[dict]) -> dict[str, str]:
+    """보고서 표기용 회사명. 후보는 크롤러가 찾은 이름, 보유 종목은 캐시된 종목 정보에서."""
+    names = {str(c.get("ticker", "")).upper(): str(c.get("name", "")) for c in new_candidates if c.get("ticker")}
+    client = get_stock_client()
+    for ticker in tickers:
+        if names.get(ticker):
+            continue
+        try:
+            info = client.get_stock_data([ticker], period="6mo").get("stock_info", {}).get(ticker, {})
+            names[ticker] = info.get("shortName") or info.get("longName") or ""
+        except Exception:
+            names[ticker] = ""
+    return names
+
+
 def _fetch_prices(tickers: list[str]) -> dict[str, float]:
     """티커별 현재가 조회. 실패한 티커는 제외(validation에서 포지션 가격으로 폴백)."""
     prices: dict[str, float] = {}
@@ -53,13 +68,15 @@ def build_decider_graph(llm_client):
         momo_score = state_get(state, "momo_score", [])
         fund_score = state_get(state, "fund_score", [])
         review_note = state_get(state, "review_note", {})
+        new_candidates = state_get(state, "new_candidates", [])
+        language = state_get(state, "language", "ko")
         market_regime = state_get(state, "market_regime", {}) or {}
         rules = regime_rules(market_regime.get("regime", "neutral"))
 
         prompt = DECIDER_SYSTEM_PROMPT.render(
             universe=state_get(state, "universe", []),
             asof=state_get(state, "asof", ""),
-            new_candidates=state_get(state, "new_candidates", []),
+            new_candidates=new_candidates,
             momo_score=momo_score,
             fund_score=fund_score,
             review_note=review_note,
@@ -68,6 +85,7 @@ def build_decider_graph(llm_client):
             buy_threshold=rules["buy_threshold"],
             candidate_buy_threshold=rules["candidate_buy_threshold"],
             cash_floor_pct=rules["cash_floor_pct"],
+            language=language,
         )
 
         # 에이전트 생성 — LLM은 액션/목표비중/근거만 결정
@@ -97,6 +115,7 @@ def build_decider_graph(llm_client):
         all_tickers = sorted((decision_tickers | position_tickers) - {""})
         prices = _fetch_prices(all_tickers)
         earnings_blackout = _fetch_earnings_blackout(all_tickers)
+        company_names = _fetch_company_names(all_tickers, new_candidates)
 
         decisions, final_portfolio = build_validated_decisions(
             llm_decisions=llm_decisions,
@@ -107,6 +126,8 @@ def build_decider_graph(llm_client):
             adjustment=review_note.get("adjustment", 0.0) if isinstance(review_note, dict) else 0.0,
             cash_floor_pct=rules["cash_floor_pct"],  # 국면별 현금 바닥 (코드 강제)
             earnings_blackout=earnings_blackout,  # 실적 임박 종목 매수 보류 (코드 강제)
+            language=language,
+            company_names=company_names,
         )
 
         return {
@@ -131,6 +152,7 @@ def adapt_parent_to_decider_in(parent) -> DeciderState:
         "review_note": parent.get("review_note", {}),
         "risk_note": parent.get("risk_note", {}),
         "market_regime": parent.get("market_regime", {}),
+        "language": parent.get("language", "ko"),
         "asof": parent.get("asof"),
         "risk_end": parent.get("risk_end", False),
     }

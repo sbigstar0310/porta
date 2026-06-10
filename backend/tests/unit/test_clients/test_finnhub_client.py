@@ -13,7 +13,8 @@ def make_client(api_key="test-key") -> FinnhubClient:
 
 @pytest.mark.unit
 class TestFinnhubClient:
-    def test_unavailable_without_key(self):
+    def test_unavailable_without_key(self, monkeypatch):
+        monkeypatch.delenv("FINNHUB_API_KEY", raising=False)  # 실제 키가 .env에 있어도 격리
         client = make_client(api_key="")
         assert client.is_available() is False
         with pytest.raises(RuntimeError):

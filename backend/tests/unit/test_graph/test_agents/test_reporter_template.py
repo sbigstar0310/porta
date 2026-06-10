@@ -52,6 +52,16 @@ class TestRenderReport:
         assert "| BUY | AAPL | 8.5% | 6.0% | +1.5 | $+225.00 |" in md
         assert "66/100" in md and "모멘텀/Momentum: 70" in md
 
+    def test_company_name_shown_with_ticker(self, final_portfolio):
+        md = render_report(
+            asof="2026-06-10T09:00:00Z",
+            decisions=[make_decision("AAPL", company_name="Apple Inc.")],
+            final_portfolio=final_portfolio,
+            narrative={"tldr": "", "stock_comments": [], "market_outlook": ""},
+        )
+        assert "| BUY | Apple Inc. (AAPL) |" in md  # 변경사항 테이블
+        assert "### Apple Inc. (AAPL) - BUY" in md  # 종목 분석 헤더
+
     def test_narrative_slots_rendered(self, final_portfolio):
         md = render_report(
             asof="2026-06-10T09:00:00Z",

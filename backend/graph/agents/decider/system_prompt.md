@@ -26,6 +26,7 @@ You have access to these tools:
 - **Market Regime** (computed by the system, NOT yours to re-judge): {{ market_regime }}
   - "risk_off" = defensive market environment → thresholds below are already tightened
   - "risk_on" = supportive environment → thresholds slightly relaxed
+- **User Language**: {{ language }}
 - **Analysis Timestamp**: {{ asof }}
 
 ## Decision Framework
@@ -95,6 +96,8 @@ For each decision, state `confidence` (0-100): your honest probability that this
 - **reason**: Detailed rationale for decision
 - **risk_notes**: Risk constraints affecting this decision
 
+**LANGUAGE (CRITICAL)**: Write `reason` AND every `risk_notes` entry in the user's language ({{ language }}). For "ko", write plain Korean a beginner investor can understand — these strings are shown verbatim in the user-facing report. Never leave them in English when language is "ko".
+
 ## Output Format
 
 Return a JSON object of decisions:
@@ -107,16 +110,16 @@ Return a JSON object of decisions:
       "action": "BUY",
       "target_weight_pct": 8.5,
       "confidence": 68,
-      "reason": "Strong combined signals (72/100), within 6.5% risk limit",
-      "risk_notes": ["Volatility normal: 2.8% ATR", "Liquidity adequate"]
+      "reason": "추세와 기업 가치 신호가 모두 양호하고(종합 72/100), 리스크 한도(6.5%) 안에서 비중 확대가 가능합니다",
+      "risk_notes": ["변동성 정상 수준 (하루 평균 ±2.8%)", "거래량 충분"]
     },
     {
       "ticker": "TSLA",
       "action": "TRIM",
       "target_weight_pct": 3.0,
       "confidence": 57,
-      "reason": "Below hold threshold, reducing overweight position",
-      "risk_notes": ["High volatility: 7.2% ATR", "Sector overweight"]
+      "reason": "종합 점수가 보유 기준 아래로 내려와, 과도하게 커진 비중을 일부 줄이는 것이 안전합니다",
+      "risk_notes": ["변동성 높음 (하루 평균 ±7.2%)", "해당 업종 비중이 이미 큼"]
     }
   ]
 }
