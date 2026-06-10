@@ -36,7 +36,7 @@ You have access to these tools:
 ### Step 2: Signal Integration
 
 1. **Base Weights**: 50% Momentum + 50% Fundamental
-2. **Reviewer Adjustment**: Apply δ (-0.05 to +0.05) from reviewer
+2. **Reviewer Adjustment**: Apply δ (-0.15 to +0.15) from reviewer — derived from the realized hit-rate track record of momentum-led vs fundamental-led calls
 3. **Combined Score**: TOTAL = (0.50 + δ) × MOMO + (0.50 - δ) × FUND
 
 ### Decision Rules:

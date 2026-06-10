@@ -105,3 +105,65 @@ class TestRenderReport:
             narrative={"tldr": "", "stock_comments": [], "market_outlook": ""},
         )
         assert "면책사항 / Legal Disclaimer" in md
+
+    def test_track_record_section_with_scorecard(self, final_portfolio):
+        review_note = {
+            "adjustment": 0.105,
+            "scorecard": {
+                "window_days": 30,
+                "lookback_days": 90,
+                "overall": {"calls": 55, "hit_rate": 0.636, "avg_excess_return_pct": 1.8},
+                "momentum_led": {"calls": 30, "hit_rate": 0.70, "avg_excess_return_pct": 2.5},
+                "fundamental_led": {"calls": 25, "hit_rate": 0.56, "avg_excess_return_pct": 0.9},
+                "best_call": {"ticker": "NVDA", "action": "BUY", "excess_return_pct": 12.3, "hit": True},
+                "worst_call": {"ticker": "XOM", "action": "BUY", "excess_return_pct": -8.1, "hit": False},
+            },
+        }
+        md = render_report(
+            asof="2026-06-10T09:00:00Z",
+            decisions=[make_decision("AAPL")],
+            final_portfolio=final_portfolio,
+            narrative={"tldr": "", "stock_comments": [], "market_outlook": ""},
+            review_note=review_note,
+        )
+        assert "추천 성적표 / Track Record" in md
+        assert "추천 55건" in md and "적중률 64%" in md
+        assert "추세 분석(모멘텀) 주도 추천 적중률 70% (30건)" in md
+        assert "추세 60.5% / 기업 가치 39.5%" in md  # 50 ± δ×100
+        assert "NVDA BUY (+12.3%p)" in md and "XOM BUY (-8.1%p)" in md
+        assert "용어 안내" in md  # 초보자용 한 줄 설명 각주
+
+    def test_track_record_section_without_data(self, final_portfolio):
+        md = render_report(
+            asof="2026-06-10T09:00:00Z",
+            decisions=[make_decision("AAPL")],
+            final_portfolio=final_portfolio,
+            narrative={"tldr": "", "stock_comments": [], "market_outlook": ""},
+            review_note={"adjustment": 0.0, "scorecard": {}},
+        )
+        assert "추천 성적표 / Track Record" in md
+        assert "추천 성적을 쌓는 중" in md
+
+    def test_track_record_section_in_english(self, final_portfolio):
+        review_note = {
+            "adjustment": 0.105,
+            "scorecard": {
+                "window_days": 30,
+                "lookback_days": 90,
+                "overall": {"calls": 55, "hit_rate": 0.636, "avg_excess_return_pct": 1.8},
+                "momentum_led": {"calls": 30, "hit_rate": 0.70, "avg_excess_return_pct": 2.5},
+                "fundamental_led": {"calls": 25, "hit_rate": 0.56, "avg_excess_return_pct": 0.9},
+                "best_call": None,
+                "worst_call": None,
+            },
+        }
+        md = render_report(
+            asof="2026-06-10T09:00:00Z",
+            decisions=[make_decision("AAPL")],
+            final_portfolio=final_portfolio,
+            narrative={"tldr": "", "stock_comments": [], "market_outlook": ""},
+            language="en",
+            review_note=review_note,
+        )
+        assert "Trend-led (momentum) calls: 70% hit rate (30 calls)" in md
+        assert "Glossary" in md

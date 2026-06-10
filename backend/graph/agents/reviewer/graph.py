@@ -1,71 +1,76 @@
 # agents/reviewer/graph.py
+import asyncio
+import logging
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import create_react_agent
-from .schema import ReviewerState, ReviewerOutput
-from jinja2 import Template
+from .schema import ReviewerState, ReviewerNote, ReviewerNarrative
+from ...feedback import SCORECARD_LOOKBACK_DAYS, get_scorecard
 from ...tools.db_data import get_portfolio_history
 from ...tools.stock_data import get_benchmark_data
+from ..utils import extract_structured_response, load_template, state_get
 from langchain_core.runnables.config import RunnableConfig
 
+logger = logging.getLogger(__name__)
 
-def load_system_prompt():
-    import os
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    prompt_path = os.path.join(current_dir, "system_prompt.md")
-    with open(prompt_path, "r") as f:
-        return Template(f.read())
+REVIEWER_SYSTEM_PROMPT = load_template(__file__)
+
+# preference 판정 기준: |δ|가 이 값 이상일 때만 한쪽 신호 선호로 표기
+PREFERENCE_THRESHOLD = 0.02
 
 
-REVIEWER_SYSTEM_PROMPT = load_system_prompt()
+def _preference(delta: float) -> str:
+    if delta >= PREFERENCE_THRESHOLD:
+        return "momentum"
+    if delta <= -PREFERENCE_THRESHOLD:
+        return "fundamental"
+    return "balanced"
 
 
 def build_reviewer_graph(llm_client):
     """LLM 클라이언트를 주입받는 reviewer graph 빌더"""
 
     def agent_wrapper(state: ReviewerState, *, config: RunnableConfig | None = None, **kwargs) -> dict:
-        # tools 정의 - 포트폴리오 기록과 벤치마크 데이터 가져오기
-        tools = [get_portfolio_history, get_benchmark_data]
+        user_id = state_get(state, "user_id", 0)
+        asof = state_get(state, "asof", "")
 
-        # state가 dict인지 Pydantic 모델인지 확인하고 안전하게 접근
-        if isinstance(state, dict):
-            universe = state.get("universe", [])
-            asof = state.get("asof", "")
-        else:
-            # Pydantic 모델인 경우
-            universe = getattr(state, "universe", [])
-            asof = getattr(state, "asof", "")
+        # δ와 통계는 트랙레코드에서 코드가 계산한다 (LLM은 해석만)
+        try:
+            scorecard = asyncio.run(get_scorecard(user_id))
+        except Exception as e:
+            logger.error(f"Failed to build scorecard for user {user_id}: {e}")
+            scorecard = {}
+        delta = float(scorecard.get("delta", 0.0))
+        preference = _preference(delta)
 
-        # 프롬프트 렌더링
         prompt = REVIEWER_SYSTEM_PROMPT.render(
-            universe=universe,
             asof=asof,
+            scorecard=scorecard,
+            delta=delta,
+            preference=preference,
         )
-
-        # 에이전트 생성
         agent = create_react_agent(
             model=llm_client,
-            tools=tools,
+            tools=[get_portfolio_history, get_benchmark_data],
             name="reviewer",
             prompt=prompt,
-            response_format=ReviewerOutput,
+            response_format=ReviewerNarrative,
         )
-        out = agent.invoke(messages=[], input=state, config=config)
 
-        # structured_response에서 실제 결과 추출
-        if "structured_response" in out and out["structured_response"]:
-            structured_response = out["structured_response"]
-            if isinstance(structured_response, dict):
-                review_note = structured_response.get("review_note", {})
-            else:
-                review_note = getattr(structured_response, "review_note", {})
-            return {
-                "review_note": review_note,
-            }
-        else:
-            # 폴백: 빈 결과 반환
-            return {
-                "review_note": {},
-            }
+        opinion = ""
+        try:
+            out = agent.invoke(messages=[], input=state, config=config)
+            opinion = extract_structured_response(out).get("opinion", "")
+        except Exception as e:
+            logger.error(f"Reviewer LLM invocation failed; continuing with stats only: {e}")
+
+        review_note = ReviewerNote(
+            period=f"최근 {SCORECARD_LOOKBACK_DAYS}일",
+            opinion=opinion,
+            preference=preference,
+            adjustment=delta,
+            scorecard=scorecard,
+        )
+        return {"review_note": review_note}
 
     g = StateGraph(ReviewerState)
     g.add_node("REVIEWER", agent_wrapper)
@@ -83,6 +88,9 @@ def adapt_parent_to_reviewer_in(parent) -> ReviewerState:
 
 
 def adapt_reviewer_to_parent_out(sub_out: ReviewerState) -> dict:
-    review_note = sub_out.get("review_note", {})
-    review_note = review_note.model_dump()
+    review_note = state_get(sub_out, "review_note")
+    if review_note is None:
+        return {"review_note": {}, "review_end": True}
+    if hasattr(review_note, "model_dump"):
+        review_note = review_note.model_dump()
     return {"review_note": review_note, "review_end": True}

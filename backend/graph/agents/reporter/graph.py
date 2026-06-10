@@ -14,7 +14,14 @@ REPORT_TEMPLATE = load_template(__file__, "report_template.md")
 EMPTY_NARRATIVE = {"tldr": "", "stock_comments": [], "market_outlook": ""}
 
 
-def render_report(asof: str, decisions: list, final_portfolio, narrative: dict, language: str = "ko") -> str:
+def render_report(
+    asof: str,
+    decisions: list,
+    final_portfolio,
+    narrative: dict,
+    language: str = "ko",
+    review_note: dict | None = None,
+) -> str:
     """보고서 골격과 모든 수치는 코드가 렌더링하고, LLM 서술은 지정 슬롯에만 들어간다."""
     comments = {c.get("ticker"): c.get("comment") for c in narrative.get("stock_comments", []) if isinstance(c, dict)}
     return REPORT_TEMPLATE.render(
@@ -24,6 +31,7 @@ def render_report(asof: str, decisions: list, final_portfolio, narrative: dict, 
         narrative=narrative,
         comments=comments,
         language=language,
+        review_note=review_note or {},
     )
 
 
@@ -39,6 +47,7 @@ def build_reporter_graph(llm_client):
         decisions = state_get(state, "decisions", [])
         final_portfolio = state_get(state, "final_portfolio")
         language = state_get(state, "language", "ko")
+        review_note = state_get(state, "review_note", {})
 
         prompt = REPORTER_SYSTEM_PROMPT.render(
             asof=asof,
@@ -47,7 +56,7 @@ def build_reporter_graph(llm_client):
             decisions=decisions,
             momo_score=state_get(state, "momo_score", []),
             fund_score=state_get(state, "fund_score", []),
-            review_note=state_get(state, "review_note", {}),
+            review_note=review_note,
             risk_note=state_get(state, "risk_note", {}),
             final_portfolio=final_portfolio,
             language=language,
@@ -68,7 +77,7 @@ def build_reporter_graph(llm_client):
             logger.error(f"Reporter LLM invocation failed; rendering report without prose: {e}")
             narrative = EMPTY_NARRATIVE
 
-        report_md = render_report(asof, decisions, final_portfolio, narrative, language)
+        report_md = render_report(asof, decisions, final_portfolio, narrative, language, review_note=review_note)
         return {"report_md": report_md}
 
     g = StateGraph(ReporterState)
