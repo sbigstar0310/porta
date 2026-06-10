@@ -71,11 +71,27 @@ while [[ $# -gt 0 ]]; do
         -d|--dev)
             MODE="dev"
             COMPOSE_FILES="-f docker-compose.yml -f docker-compose.override.yml"
+            # dev 모드는 반드시 .env.dev로 Supabase를 덮어쓴다 (prod DB 사용 금지)
+            if [ -f ".env.dev" ]; then
+                DEV_SUPABASE_URL=$(grep -E '^SUPABASE_URL=' .env.dev | head -1 | cut -d= -f2-)
+                PROD_SUPABASE_URL=$(grep -E '^SUPABASE_URL=' .env | head -1 | cut -d= -f2-)
+                if [ -z "$DEV_SUPABASE_URL" ] || [ "$DEV_SUPABASE_URL" = "$PROD_SUPABASE_URL" ]; then
+                    log_error ".env.dev의 SUPABASE_URL이 비어 있거나 프로덕션(.env)과 동일합니다. dev DB로 분리해주세요."
+                    exit 1
+                fi
+                export PORTA_ENV_FILE=".env.dev"
+                log_info "dev 환경 오버레이 사용: .env.dev"
+            else
+                log_error ".env.dev가 없습니다. dev 모드는 프로덕션 DB(.env) 사용이 금지됩니다."
+                log_error "루트에 .env.dev를 만들고 dev Supabase의 SUPABASE_URL/KEY/SERVICE_ROLE_KEY를 넣어주세요."
+                exit 1
+            fi
             shift
             ;;
         -p|--prod)
             MODE="prod"
             COMPOSE_FILES="-f docker-compose.yml"
+            unset PORTA_ENV_FILE
             shift
             ;;
         -b|--build)

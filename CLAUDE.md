@@ -117,6 +117,37 @@ Format: `[type:scope] Description`
 Required: `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY` (anon), `SUPABASE_SERVICE_ROLE_KEY` (service_role — data layer/RLS bypass), `RESEND_API_KEY`, `REDIS_URL`
 Optional: `LANGSMITH_API_KEY` (agent tracing), `ANTHROPIC_API_KEY`, `FINNHUB_API_KEY` (news/earnings calendar/price fallback — without it, crawler uses web search only and the earnings-blackout rule is skipped; free tier is personal-use, needs commercial license before monetization)
 
+## Dev vs Prod Environment (IMPORTANT)
+
+There is **no local DB** — both envs use cloud Supabase, but **separate projects**:
+
+- **`.env`** → production Supabase project. Real users live here. NEVER point dev testing, E2E, or seeding at it.
+- **`.env.dev`** (gitignored) → dev Supabase project (same account, separate project). Contains only `SUPABASE_URL`/`SUPABASE_KEY`/`SUPABASE_SERVICE_ROLE_KEY` overrides; all other keys are inherited from `.env`.
+- Switching is done via the **`PORTA_ENV_FILE` overlay**: base `.env` is loaded first, then the file in `PORTA_ENV_FILE` overrides it. Wired into `app.py`, `worker/tasks.py`, `docker-compose.yml` (`env_file`), `scripts/stack-start.sh` (`--dev` requires `.env.dev` and refuses to run on the prod URL), and `backend/scripts/run-server.sh`.
+
+### Working against the dev DB
+
+```bash
+# Backend API server on dev DB (for frontend testing):
+cd backend && PORTA_ENV_FILE=../.env.dev uv run ./scripts/run-server.sh
+
+# Frontend dev server (talks to localhost:8000, so it follows whatever DB the backend uses):
+cd frontend && flutter run -d web-server --web-port 3000
+
+# Seed dev DB with a synthetic test portfolio (idempotent):
+cd backend && uv run python scripts/seed_dev.py
+
+# Backend pipeline E2E on dev DB (no email, no report save; saves report to local_documents/):
+cd backend && uv run python scripts/run_e2e.py
+```
+
+Dev schema setup: run `backend/data/sql_history/latest.sql` in the dev project's SQL Editor (canonical full schema).
+
+### Test accounts (dev DB)
+
+- `e2e-test@porta.dev` — backend pipeline E2E fixture, seeded directly into `public.users` (bypasses Auth, cannot log in). Created by `seed_dev.py`. Disposable.
+- Frontend Auth-flow testing account — credentials in `local_documents/test-account.md` (gitignored). Must be registered through the real sign-up flow (so `auth.users` ↔ `public.users` mapping is created properly). Do NOT seed this email directly into the DB.
+
 ## Test Markers (pytest)
 
 `unit`, `integration`, `e2e`, `agent`, `db`, `api`, `slow`

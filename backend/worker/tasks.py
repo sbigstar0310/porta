@@ -40,6 +40,11 @@ async def _initialize_dependencies_once() -> dict[str, Any]:
             load_dotenv()
             logger.debug("환경변수 로드 완료")
 
+        # PORTA_ENV_FILE 오버레이 (예: .env.dev → dev Supabase)
+        _env_overlay = os.getenv("PORTA_ENV_FILE")
+        if _env_overlay:
+            load_dotenv(_env_overlay, override=True)
+
         # DB 초기화 (싱글톤이므로 안전)
         from data.db import Database
 

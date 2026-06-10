@@ -129,6 +129,17 @@ else
     log_warning ".env 파일을 찾을 수 없습니다. 기본 설정을 사용합니다."
 fi
 
+# PORTA_ENV_FILE 오버레이 (예: ../.env.dev → dev Supabase로 전환)
+if [[ -n "$PORTA_ENV_FILE" ]]; then
+    if [[ -f "$PORTA_ENV_FILE" ]]; then
+        log_info "환경 오버레이 적용: $PORTA_ENV_FILE"
+        export $(grep -v '^#' "$PORTA_ENV_FILE" | xargs)
+    else
+        log_error "PORTA_ENV_FILE 파일을 찾을 수 없습니다: $PORTA_ENV_FILE"
+        exit 1
+    fi
+fi
+
 # 서버 시작
 log_info "서버 모드: $MODE"
 log_info "포트: $PORT"

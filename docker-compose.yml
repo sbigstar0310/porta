@@ -56,6 +56,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
     env_file:
       - .env
+      - ${PORTA_ENV_FILE:-.env}
     volumes:
       - ./backend:/app
       - api_venv:/app/.venv  # 명명된 볼륨으로 가상환경 유지
@@ -89,6 +90,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
     env_file:
       - .env
+      - ${PORTA_ENV_FILE:-.env}
     volumes:
       - ./backend:/app
       - worker_venv:/app/.venv
@@ -116,6 +118,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
     env_file:
       - .env
+      - ${PORTA_ENV_FILE:-.env}
     volumes:
       - ./backend:/app
       - beat_venv:/app/.venv

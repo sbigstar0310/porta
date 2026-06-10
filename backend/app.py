@@ -58,6 +58,11 @@ if not result:
 else:
     logger.info(".env 파일이 성공적으로 로드되었습니다.")
 
+# PORTA_ENV_FILE이 지정되면 해당 파일이 베이스(.env)를 덮어쓴다 (예: .env.dev → dev Supabase)
+_env_overlay = os.getenv("PORTA_ENV_FILE")
+if _env_overlay and load_dotenv(dotenv_path=_env_overlay, override=True):
+    logger.info(f"환경 오버레이 로드: {_env_overlay} (베이스 .env 값을 덮어씀)")
+
 
 # API KEYS
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
