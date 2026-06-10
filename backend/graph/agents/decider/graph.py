@@ -128,6 +128,8 @@ def build_decider_graph(llm_client):
             earnings_blackout=earnings_blackout,  # 실적 임박 종목 매수 보류 (코드 강제)
             language=language,
             company_names=company_names,
+            buy_threshold=rules["buy_threshold"],  # 점수 기준 미달 BUY 차단 (코드 강제)
+            candidate_buy_threshold=rules["candidate_buy_threshold"],
         )
 
         return {

@@ -36,6 +36,7 @@ SYSTEM_NOTES = {
         "buy_noop": "BUY 목표 비중이 현재 비중 이하 → 거래 없음",
         "buy_canceled": "가용 현금 부족(현금 바닥 유지)으로 매수 취소 → HOLD",
         "buy_scaled": "가용 현금 한도에 맞춰 매수 수량 {scale_pct:.0f}%로 축소",
+        "buy_below_threshold": "종합 점수({score:.0f})가 매수 기준({threshold:.0f}) 미달 → 매수 보류",
         "momo_missing": "모멘텀 점수 누락",
         "fund_missing": "펀더멘털 점수 누락",
     },
@@ -47,6 +48,7 @@ SYSTEM_NOTES = {
         "buy_noop": "BUY target weight is at or below current → no trade",
         "buy_canceled": "Insufficient available cash (cash floor) → buy canceled (HOLD)",
         "buy_scaled": "Buy size reduced to {scale_pct:.0f}% to fit available cash",
+        "buy_below_threshold": "Total score ({score:.0f}) is below the buy threshold ({threshold:.0f}) → buy deferred",
         "momo_missing": "Momentum score missing",
         "fund_missing": "Fundamental score missing",
     },
@@ -71,6 +73,9 @@ class TradeIntent:
     current_weight_pct: float
     delta_shares: float  # 매수(+) / 매도(-) 수량
     confidence: float = 50.0  # LLM의 콜별 확신도 (0-100 클램프됨)
+    momo_score: float = 0.0  # ground-truth 점수 (코드 재계산)
+    fund_score: float = 0.0
+    total_score: float = 0.0
 
     @property
     def trade_value(self) -> float:
@@ -92,20 +97,38 @@ def build_validated_decisions(
     earnings_blackout: Optional[Dict[str, str]] = None,
     language: str = "ko",
     company_names: Optional[Dict[str, str]] = None,
+    buy_threshold: Optional[float] = None,
+    candidate_buy_threshold: Optional[float] = None,
 ) -> Tuple[List[Decision], PortfolioOut]:
     """LLM 결정을 실제 포트폴리오 기준으로 검증·클램프하고 최종 포트폴리오를 재계산한다.
 
     earnings_blackout: 실적 발표가 임박한 티커(→발표일). 해당 티커의 BUY는 HOLD로 보류.
+    buy_threshold / candidate_buy_threshold: 종합 점수가 기준 미달인 BUY를 HOLD로 보류
+        (None이면 게이트 비활성 — LLM이 공표된 점수 기준을 무시하는 것을 코드로 차단).
     """
     total_value = _portfolio_total_value(portfolio, prices)
     if total_value <= 0:
         logger.error("Portfolio total value is non-positive; skipping decision validation")
         return [], portfolio
 
+    delta = _clamp(adjustment, -MAX_ADJUSTMENT, MAX_ADJUSTMENT)
+
     # 1. 거래 의도 생성 (티커당 1건, 중복은 마지막 결정 사용)
     intents: Dict[str, TradeIntent] = {}
     for raw in llm_decisions:
-        intent = _build_intent(raw, portfolio, prices, total_value, earnings_blackout or {}, language)
+        intent = _build_intent(
+            raw,
+            portfolio,
+            prices,
+            total_value,
+            earnings_blackout or {},
+            language,
+            momo_by_ticker,
+            fund_by_ticker,
+            delta,
+            buy_threshold,
+            candidate_buy_threshold,
+        )
         if intent:
             intents[intent.ticker] = intent
 
@@ -113,11 +136,7 @@ def build_validated_decisions(
     _cap_buys_to_budget(list(intents.values()), float(portfolio.cash), total_value, cash_floor_pct, language)
 
     # 3. Decision 변환 + 4. 최종 포트폴리오 계산
-    delta = _clamp(adjustment, -MAX_ADJUSTMENT, MAX_ADJUSTMENT)
-    decisions = [
-        _to_decision(i, momo_by_ticker, fund_by_ticker, delta, total_value, language, company_names or {})
-        for i in intents.values()
-    ]
+    decisions = [_to_decision(i, total_value, company_names or {}) for i in intents.values()]
     final_portfolio = _apply_intents(portfolio, intents, prices)
     return decisions, final_portfolio
 
@@ -132,8 +151,17 @@ def _build_intent(
     total_value: float,
     earnings_blackout: Dict[str, str],
     language: str,
+    momo_by_ticker: Dict[str, float],
+    fund_by_ticker: Dict[str, float],
+    delta: float,
+    buy_threshold: Optional[float],
+    candidate_buy_threshold: Optional[float],
 ) -> Optional[TradeIntent]:
-    """LLM 결정 1건을 검증해 거래 의도로 변환한다. 의미 없는 결정은 None으로 폐기."""
+    """LLM 결정 1건을 검증해 거래 의도로 변환한다. 의미 없는 결정은 None으로 폐기.
+
+    게이트(실적 임박·점수 기준 미달)로 보류된 BUY는 미보유 종목이라도 HOLD로 유지해
+    보고서에 보류 사유가 표시되게 한다.
+    """
     ticker = str(raw.get("ticker", "")).upper().strip()
     if not ticker:
         return None
@@ -144,16 +172,11 @@ def _build_intent(
         notes.append(_note(language, "unknown_action", action=action))
         action = "HOLD"
 
-    # 실적 발표 임박 종목은 매수 보류 (코드 강제 — LLM이 무시해도 막힘)
-    if action == "BUY" and ticker in earnings_blackout:
-        notes.append(_note(language, "earnings_blackout", date=earnings_blackout[ticker]))
-        action = "HOLD"
-
     position = next((p for p in portfolio.positions if p.ticker == ticker), None)
     held = float(position.total_shares) if position else 0.0
     price = _resolve_price(ticker, prices, position)
 
-    # 미보유 종목(신규 후보)은 BUY만 의미가 있음
+    # 미보유 종목(신규 후보)에 대해 LLM이 낸 SELL/TRIM/HOLD는 의미 없음 → 폐기
     if held <= MIN_SHARES and action != "BUY":
         logger.info(f"Dropping {action} decision for unheld ticker {ticker}")
         return None
@@ -165,6 +188,27 @@ def _build_intent(
             return None
         notes.append(_note(language, "price_unavailable"))
         action, price = "HOLD", 0.0
+
+    # ground-truth 점수 (게이트 판정과 Decision 표기에 공용)
+    momo = momo_by_ticker.get(ticker)
+    fund = fund_by_ticker.get(ticker)
+    if momo is None:
+        notes.append(_note(language, "momo_missing"))
+    if fund is None:
+        notes.append(_note(language, "fund_missing"))
+    momo, fund = float(momo or 0.0), float(fund or 0.0)
+    total_score = (0.5 + delta) * momo + (0.5 - delta) * fund
+
+    # 게이트 1: 실적 발표 임박 종목은 매수 보류 (코드 강제 — LLM이 무시해도 막힘)
+    if action == "BUY" and ticker in earnings_blackout:
+        notes.append(_note(language, "earnings_blackout", date=earnings_blackout[ticker]))
+        action = "HOLD"
+
+    # 게이트 2: 종합 점수가 매수 기준 미달이면 보류 (공표된 점수 기준과 모순되는 BUY 차단)
+    threshold = candidate_buy_threshold if held <= MIN_SHARES else buy_threshold
+    if action == "BUY" and threshold is not None and total_score < threshold:
+        notes.append(_note(language, "buy_below_threshold", score=total_score, threshold=threshold))
+        action = "HOLD"
 
     current_weight = held * price / total_value * 100.0
     target_weight = float(raw.get("target_weight_pct") or current_weight)
@@ -184,6 +228,9 @@ def _build_intent(
         current_weight_pct=current_weight,
         delta_shares=delta_shares,
         confidence=_clamp(raw.get("confidence", 50.0), 0.0, 100.0),
+        momo_score=momo,
+        fund_score=fund,
+        total_score=total_score,
     )
 
 
@@ -248,24 +295,8 @@ def _cap_buys_to_budget(
 # ---- 3단계: 거래 의도 → Decision ----
 
 
-def _to_decision(
-    intent: TradeIntent,
-    momo_by_ticker: Dict[str, float],
-    fund_by_ticker: Dict[str, float],
-    delta: float,
-    total_value: float,
-    language: str,
-    company_names: Dict[str, str],
-) -> Decision:
-    """점수를 ground-truth로 재계산해 Decision을 만든다."""
-    momo = momo_by_ticker.get(intent.ticker)
-    fund = fund_by_ticker.get(intent.ticker)
-    if momo is None:
-        intent.notes.append(_note(language, "momo_missing"))
-    if fund is None:
-        intent.notes.append(_note(language, "fund_missing"))
-    momo, fund = float(momo or 0.0), float(fund or 0.0)
-
+def _to_decision(intent: TradeIntent, total_value: float, company_names: Dict[str, str]) -> Decision:
+    """거래 의도를 Decision으로 변환한다 (점수는 _build_intent에서 ground-truth로 계산됨)."""
     final_shares = intent.held_shares + intent.delta_shares
     final_weight = final_shares * intent.price / total_value * 100.0
 
@@ -279,9 +310,9 @@ def _to_decision(
         trade_value=round(intent.trade_value, 2),
         price=round(intent.price, 4),
         confidence=round(intent.confidence, 1),
-        total_score=round((0.5 + delta) * momo + (0.5 - delta) * fund, 1),
-        momo_score=round(momo, 1),
-        fund_score=round(fund, 1),
+        total_score=round(intent.total_score, 1),
+        momo_score=round(intent.momo_score, 1),
+        fund_score=round(intent.fund_score, 1),
         reason=intent.reason,
         risk_notes=intent.notes,
     )

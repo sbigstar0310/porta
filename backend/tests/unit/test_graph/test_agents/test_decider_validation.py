@@ -164,6 +164,60 @@ class TestBuildValidatedDecisions:
         assert decisions[0].shares_to_trade == 0.0
         assert any("실적 발표 임박" in note for note in decisions[0].risk_notes)
 
+    def test_buy_below_threshold_becomes_hold(self, portfolio, prices):
+        # 종합 48점 < 기준 62점 → 매수 보류 (보고서의 점수-액션 모순 차단)
+        decisions, _ = build_validated_decisions(
+            [make_decision("AAPL", "BUY", target_weight_pct=60.0)],
+            portfolio,
+            prices,
+            momo_by_ticker={"AAPL": 48},
+            fund_by_ticker={"AAPL": 48},
+            buy_threshold=62,
+            candidate_buy_threshold=62,
+        )
+        assert decisions[0].action == "HOLD"
+        assert decisions[0].shares_to_trade == 0.0
+        assert any("매수 기준" in note and "미달" in note for note in decisions[0].risk_notes)
+
+    def test_buy_above_threshold_passes_gate(self, portfolio, prices):
+        decisions, _ = build_validated_decisions(
+            [make_decision("AAPL", "BUY", target_weight_pct=60.0)],
+            portfolio,
+            prices,
+            momo_by_ticker={"AAPL": 70},
+            fund_by_ticker={"AAPL": 70},
+            buy_threshold=62,
+            candidate_buy_threshold=62,
+        )
+        assert decisions[0].action == "BUY"
+        assert decisions[0].shares_to_trade > 0
+
+    def test_gated_candidate_kept_in_report_as_hold(self, portfolio, prices):
+        # 미보유 후보가 기준 미달로 보류되면 폐기하지 않고 사유와 함께 HOLD로 남긴다
+        decisions, _ = build_validated_decisions(
+            [make_decision("NVDA", "BUY", target_weight_pct=10.0)],
+            portfolio,
+            prices,
+            momo_by_ticker={"NVDA": 50},
+            fund_by_ticker={"NVDA": 50},
+            buy_threshold=62,
+            candidate_buy_threshold=67,  # 신규 후보는 더 높은 기준
+        )
+        assert len(decisions) == 1
+        assert decisions[0].action == "HOLD"
+        assert any("기준(67)" in note for note in decisions[0].risk_notes)
+
+    def test_gate_disabled_when_threshold_none(self, portfolio, prices):
+        # 임계값 미지정 시 게이트 비활성 (하위 호환)
+        decisions, _ = build_validated_decisions(
+            [make_decision("AAPL", "BUY", target_weight_pct=60.0)],
+            portfolio,
+            prices,
+            momo_by_ticker={"AAPL": 10},
+            fund_by_ticker={"AAPL": 10},
+        )
+        assert decisions[0].action == "BUY"
+
     def test_system_notes_follow_language(self, portfolio, prices):
         decisions, _ = build_validated_decisions(
             [make_decision("AAPL", "BUY", target_weight_pct=60.0)],
