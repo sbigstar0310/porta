@@ -28,8 +28,11 @@ def build_crawler_graph(llm_client):
     cache_client = get_cache_client()
 
     def agent_wrapper(state: CrawlerState, *, config: RunnableConfig | None = None, **kwargs) -> dict:
-        # Pre-built DuckDuckGo 툴 생성
+        # 뉴스 피드(Finnhub)와 웹검색(DuckDuckGo)을 병행 사용
+        from ...tools.news import get_market_news, get_company_news
+
         web_search_tool = DuckDuckGoSearchResults()
+        tools = [get_market_news, get_company_news, web_search_tool]
 
         # state가 dict인지 Pydantic 모델인지 확인하고 안전하게 접근
         if isinstance(state, dict):
@@ -56,7 +59,7 @@ def build_crawler_graph(llm_client):
             # 에이전트 생성
             agent = create_react_agent(
                 model=llm_client,
-                tools=[web_search_tool],
+                tools=tools,
                 name="crawler",
                 prompt=prompt,
                 response_format=CrawlerOutput,

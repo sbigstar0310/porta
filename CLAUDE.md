@@ -115,7 +115,7 @@ Format: `[type:scope] Description`
 ## Environment Variables (root .env)
 
 Required: `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY` (anon), `SUPABASE_SERVICE_ROLE_KEY` (service_role — data layer/RLS bypass), `RESEND_API_KEY`, `REDIS_URL`
-Optional: `LANGSMITH_API_KEY` (agent tracing), `ANTHROPIC_API_KEY`
+Optional: `LANGSMITH_API_KEY` (agent tracing), `ANTHROPIC_API_KEY`, `FINNHUB_API_KEY` (news/earnings calendar/price fallback — without it, crawler uses web search only and the earnings-blackout rule is skipped; free tier is personal-use, needs commercial license before monetization)
 
 ## Test Markers (pytest)
 

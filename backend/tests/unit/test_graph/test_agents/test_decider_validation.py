@@ -151,6 +151,30 @@ class TestBuildValidatedDecisions:
         assert decisions[0].fund_score == 60.0
         assert decisions[0].total_score == pytest.approx(0.65 * 70 + 0.35 * 60, abs=0.1)
 
+    def test_earnings_blackout_converts_buy_to_hold(self, portfolio, prices):
+        decisions, _ = build_validated_decisions(
+            [make_decision("AAPL", "BUY", target_weight_pct=60.0)],
+            portfolio,
+            prices,
+            {},
+            {},
+            earnings_blackout={"AAPL": "2026-06-12"},
+        )
+        assert decisions[0].action == "HOLD"
+        assert decisions[0].shares_to_trade == 0.0
+        assert any("실적 발표 임박" in note for note in decisions[0].risk_notes)
+
+    def test_earnings_blackout_does_not_affect_sells(self, portfolio, prices):
+        decisions, _ = build_validated_decisions(
+            [make_decision("TSLA", "SELL")],
+            portfolio,
+            prices,
+            {},
+            {},
+            earnings_blackout={"TSLA": "2026-06-12"},
+        )
+        assert decisions[0].action == "SELL"  # 매도/보유는 블랙아웃 무관
+
     def test_confidence_clamped_and_defaulted(self, portfolio, prices):
         decisions, _ = build_validated_decisions(
             [

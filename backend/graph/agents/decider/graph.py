@@ -4,9 +4,9 @@ import logging
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import create_react_agent
 from .schema import DeciderState, DeciderLLMOutput
-from .validation import build_validated_decisions
+from .validation import EARNINGS_BLACKOUT_DAYS, build_validated_decisions
 from ...regime import regime_rules
-from clients import get_stock_client
+from clients import get_finnhub_client, get_stock_client
 from repo import get_portfolio_repo
 from ...tools.db_data import get_current_portfolio, get_user_id_from_config
 from ...tools.stock_data import get_stock_data
@@ -16,6 +16,18 @@ from langchain_core.runnables.config import RunnableConfig
 logger = logging.getLogger(__name__)
 
 DECIDER_SYSTEM_PROMPT = load_template(__file__)
+
+
+def _fetch_earnings_blackout(tickers: list[str]) -> dict[str, str]:
+    """실적 발표가 EARNINGS_BLACKOUT_DAYS 이내인 티커 → 발표일. 조회 불가 시 빈 dict."""
+    client = get_finnhub_client()
+    if not client.is_available():
+        return {}
+    try:
+        return client.get_upcoming_earnings(tickers, days=EARNINGS_BLACKOUT_DAYS)
+    except Exception as e:
+        logger.warning(f"Failed to fetch earnings calendar (skipping blackout rule): {e}")
+        return {}
 
 
 def _fetch_prices(tickers: list[str]) -> dict[str, float]:
@@ -82,7 +94,9 @@ def build_decider_graph(llm_client):
 
         decision_tickers = {str(d.get("ticker", "")).upper().strip() for d in llm_decisions}
         position_tickers = {p.ticker for p in portfolio.positions}
-        prices = _fetch_prices(sorted((decision_tickers | position_tickers) - {""}))
+        all_tickers = sorted((decision_tickers | position_tickers) - {""})
+        prices = _fetch_prices(all_tickers)
+        earnings_blackout = _fetch_earnings_blackout(all_tickers)
 
         decisions, final_portfolio = build_validated_decisions(
             llm_decisions=llm_decisions,
@@ -92,6 +106,7 @@ def build_decider_graph(llm_client):
             fund_by_ticker={f["ticker"]: f.get("FUND") for f in fund_score if isinstance(f, dict)},
             adjustment=review_note.get("adjustment", 0.0) if isinstance(review_note, dict) else 0.0,
             cash_floor_pct=rules["cash_floor_pct"],  # 국면별 현금 바닥 (코드 강제)
+            earnings_blackout=earnings_blackout,  # 실적 임박 종목 매수 보류 (코드 강제)
         )
 
         return {

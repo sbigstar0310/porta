@@ -26,9 +26,16 @@ def get_cache_client() -> CacheClient:
     return CacheClient()
 
 
+def get_finnhub_client():
+    from .finnhub_client import FinnhubClient
+
+    return FinnhubClient()
+
+
 __all__ = [
     "get_stock_client",
     "get_supabase_client",
     "get_email_client",
     "get_cache_client",
+    "get_finnhub_client",
 ]

@@ -56,12 +56,25 @@ def build_risk_graph(llm_client):
 
         market_regime = state.get("market_regime", {}) if isinstance(state, dict) else getattr(state, "market_regime", {})
 
+        # 향후 7일 내 실적 발표 일정 (코드 조회 — LLM이 캘린더를 추측하지 않게)
+        upcoming_earnings = {}
+        try:
+            from clients import get_finnhub_client
+
+            finnhub = get_finnhub_client()
+            if finnhub.is_available():
+                candidate_tickers = [c.get("ticker") for c in new_candidates if c.get("ticker")]
+                upcoming_earnings = finnhub.get_upcoming_earnings(list(universe) + candidate_tickers, days=7)
+        except Exception:
+            pass  # 조회 실패 시 빈 일정으로 진행
+
         # 프롬프트 렌더링
         prompt = RISK_SYSTEM_PROMPT.render(
             universe=universe,
             asof=asof,
             new_candidates=new_candidates,
             market_regime=market_regime or {},
+            upcoming_earnings=upcoming_earnings,
         )
 
         # 에이전트 생성

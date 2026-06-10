@@ -194,9 +194,26 @@ class StockClient:
 
     @classmethod
     def get_stock_current_price(cls, tickers: List[str]) -> Dict[str, float]:
+        """현재가 조회. yfinance 실패 시 Finnhub 시세로 폴백, 둘 다 실패한 티커는 제외."""
         current_prices = {}
+        finnhub = None
         for ticker in tickers:
-            current_prices[ticker] = yf.Ticker(ticker).history(period="1d")["Close"].iloc[-1]
+            try:
+                current_prices[ticker] = float(yf.Ticker(ticker).history(period="1d")["Close"].iloc[-1])
+                continue
+            except Exception as e:
+                logger.warning(f"yfinance price failed for {ticker}, trying Finnhub fallback: {e}")
+            try:
+                if finnhub is None:
+                    from clients.finnhub_client import FinnhubClient
+
+                    finnhub = FinnhubClient()
+                if finnhub.is_available():
+                    price = finnhub.get_quote(ticker)
+                    if price:
+                        current_prices[ticker] = price
+            except Exception as e:
+                logger.warning(f"Finnhub price fallback failed for {ticker}: {e}")
         return current_prices
 
     @classmethod

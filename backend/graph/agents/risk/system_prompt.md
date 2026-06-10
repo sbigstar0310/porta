@@ -24,6 +24,8 @@ You have access to these tools:
 - **Momentum Scores**: {{ momo_score }}
 - **Fundamental Scores**: {{ fund_score }}
 - **Market Regime** (computed by the system, NOT yours to re-judge): {{ market_regime }}
+- **Upcoming Earnings (next 7 days, from calendar API — do NOT guess dates)**: {{ upcoming_earnings }}
+  - Tickers reporting within 3 days are blocked from new buys by the system; flag them in `per_ticker` notes.
 
 ### Regime-Adjusted Stance
 

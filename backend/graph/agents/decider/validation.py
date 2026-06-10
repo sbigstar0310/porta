@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 VALID_ACTIONS = {"BUY", "SELL", "HOLD", "TRIM"}
 MIN_SHARES = 1e-9  # 부동소수점 오차로 남는 잔여 수량 제거용
 MAX_ADJUSTMENT = 0.15  # 리뷰어 가중치 조정(δ) 허용 범위 → 가중치 35/65 ~ 65/35
+EARNINGS_BLACKOUT_DAYS = 3  # 실적 발표가 이 일수 이내면 매수 보류
 
 
 @dataclass
@@ -57,8 +58,12 @@ def build_validated_decisions(
     fund_by_ticker: Dict[str, float],
     adjustment: float = 0.0,
     cash_floor_pct: float = 5.0,
+    earnings_blackout: Optional[Dict[str, str]] = None,
 ) -> Tuple[List[Decision], PortfolioOut]:
-    """LLM 결정을 실제 포트폴리오 기준으로 검증·클램프하고 최종 포트폴리오를 재계산한다."""
+    """LLM 결정을 실제 포트폴리오 기준으로 검증·클램프하고 최종 포트폴리오를 재계산한다.
+
+    earnings_blackout: 실적 발표가 임박한 티커(→발표일). 해당 티커의 BUY는 HOLD로 보류.
+    """
     total_value = _portfolio_total_value(portfolio, prices)
     if total_value <= 0:
         logger.error("Portfolio total value is non-positive; skipping decision validation")
@@ -67,7 +72,7 @@ def build_validated_decisions(
     # 1. 거래 의도 생성 (티커당 1건, 중복은 마지막 결정 사용)
     intents: Dict[str, TradeIntent] = {}
     for raw in llm_decisions:
-        intent = _build_intent(raw, portfolio, prices, total_value)
+        intent = _build_intent(raw, portfolio, prices, total_value, earnings_blackout or {})
         if intent:
             intents[intent.ticker] = intent
 
@@ -89,6 +94,7 @@ def _build_intent(
     portfolio: PortfolioOut,
     prices: Dict[str, float],
     total_value: float,
+    earnings_blackout: Dict[str, str],
 ) -> Optional[TradeIntent]:
     """LLM 결정 1건을 검증해 거래 의도로 변환한다. 의미 없는 결정은 None으로 폐기."""
     ticker = str(raw.get("ticker", "")).upper().strip()
@@ -99,6 +105,11 @@ def _build_intent(
     notes = [str(n) for n in raw.get("risk_notes", [])]
     if action not in VALID_ACTIONS:
         notes.append(f"알 수 없는 액션 '{action}' → HOLD로 처리")
+        action = "HOLD"
+
+    # 실적 발표 임박 종목은 매수 보류 (코드 강제 — LLM이 무시해도 막힘)
+    if action == "BUY" and ticker in earnings_blackout:
+        notes.append(f"실적 발표 임박({earnings_blackout[ticker]}) → 매수 보류")
         action = "HOLD"
 
     position = next((p for p in portfolio.positions if p.ticker == ticker), None)
