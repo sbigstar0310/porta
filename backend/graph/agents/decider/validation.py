@@ -38,6 +38,7 @@ class TradeIntent:
     price: float
     current_weight_pct: float
     delta_shares: float  # 매수(+) / 매도(-) 수량
+    confidence: float = 50.0  # LLM의 콜별 확신도 (0-100 클램프됨)
 
     @property
     def trade_value(self) -> float:
@@ -134,6 +135,7 @@ def _build_intent(
         price=price,
         current_weight_pct=current_weight,
         delta_shares=delta_shares,
+        confidence=_clamp(raw.get("confidence", 50.0), 0.0, 100.0),
     )
 
 
@@ -223,6 +225,7 @@ def _to_decision(
         shares_to_trade=round(intent.delta_shares, 4),
         trade_value=round(intent.trade_value, 2),
         price=round(intent.price, 4),
+        confidence=round(intent.confidence, 1),
         total_score=round((0.5 + delta) * momo + (0.5 - delta) * fund, 1),
         momo_score=round(momo, 1),
         fund_score=round(fund, 1),

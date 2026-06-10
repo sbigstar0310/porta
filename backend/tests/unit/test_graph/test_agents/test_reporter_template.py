@@ -117,6 +117,13 @@ class TestRenderReport:
                 "fundamental_led": {"calls": 25, "hit_rate": 0.56, "avg_excess_return_pct": 0.9},
                 "best_call": {"ticker": "NVDA", "action": "BUY", "excess_return_pct": 12.3, "hit": True},
                 "worst_call": {"ticker": "XOM", "action": "BUY", "excess_return_pct": -8.1, "hit": False},
+                "calibration": {
+                    "calls": 42,
+                    "avg_confidence": 0.78,
+                    "hit_rate": 0.61,
+                    "overconfidence_gap_pct": 17.0,
+                    "brier": 0.24,
+                },
             },
         }
         md = render_report(
@@ -131,6 +138,7 @@ class TestRenderReport:
         assert "추세 분석(모멘텀) 주도 추천 적중률 70% (30건)" in md
         assert "추세 60.5% / 기업 가치 39.5%" in md  # 50 ± δ×100
         assert "NVDA BUY (+12.3%p)" in md and "XOM BUY (-8.1%p)" in md
+        assert "확신도 평균 78% vs 실제 적중률 61%" in md and "과하게 표현하는 경향" in md
         assert "용어 안내" in md  # 초보자용 한 줄 설명 각주
 
     def test_track_record_section_without_data(self, final_portfolio):

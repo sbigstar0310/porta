@@ -27,6 +27,7 @@ SCORECARD_LOOKBACK_DAYS = 90  # 스코어카드 집계 기간
 SIGNAL_MARGIN = 10.0  # 모멘텀/펀더멘털 "주도 콜" 판정에 필요한 점수 차이
 SHRINK_TARGET_N = 20  # 이 표본 수 미만이면 δ를 비례 축소
 DELTA_COEF = 0.75  # 적중률 차이 → δ 변환 계수
+CALIBRATION_MIN_CALLS = 20  # 보정 통계를 표시/주입하는 최소 표본 수
 BENCHMARK_TICKER = "SPY"
 
 
@@ -131,6 +132,30 @@ def build_scorecard(
         "fundamental_led": summarize(fund_led),
         "best_call": _call_summary(best),
         "worst_call": _call_summary(worst),
+        "calibration": _calibration(scored),
+    }
+
+
+def _calibration(scored) -> Dict[str, Any]:
+    """확신도 보정 통계: 시스템이 매긴 확신(confidence) vs 실제 적중률.
+
+    Brier = mean((confidence/100 − hit)²) — 0이 완벽, 0.25가 동전 던지기 수준.
+    overconfidence_gap_pct > 0 이면 과신, < 0 이면 과도하게 신중.
+    """
+    with_conf = [(rec, hit) for rec, _, hit in scored if rec.confidence is not None]
+    n = len(with_conf)
+    if n == 0:
+        return {"calls": 0, "avg_confidence": None, "hit_rate": None, "overconfidence_gap_pct": None, "brier": None}
+
+    avg_confidence = sum(rec.confidence / 100.0 for rec, _ in with_conf) / n
+    hit_rate = sum(1 for _, hit in with_conf if hit) / n
+    brier = sum((rec.confidence / 100.0 - (1.0 if hit else 0.0)) ** 2 for rec, hit in with_conf) / n
+    return {
+        "calls": n,
+        "avg_confidence": round(avg_confidence, 3),
+        "hit_rate": round(hit_rate, 3),
+        "overconfidence_gap_pct": round((avg_confidence - hit_rate) * 100, 1),
+        "brier": round(brier, 3),
     }
 
 
@@ -191,6 +216,7 @@ async def record_recommendations(user_id: int, report_id: Optional[int], decisio
                 fund_score=d.get("fund_score"),
                 target_weight_pct=d.get("target_weight_pct"),
                 price_at_rec=price,
+                confidence=d.get("confidence"),
                 reason=d.get("reason"),
             )
         )

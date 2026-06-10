@@ -398,6 +398,7 @@ class RecommendationCreate(BaseModel):
     fund_score: Optional[float] = None
     target_weight_pct: Optional[float] = None
     price_at_rec: float = Field(..., gt=0, description="추천 시점의 검증된 시세")
+    confidence: Optional[float] = Field(None, ge=0, le=100, description="DECIDER의 콜별 확신도")
     reason: Optional[str] = None
 
     @field_validator("action")
@@ -422,6 +423,7 @@ class RecommendationOut(BaseModel):
     fund_score: Optional[float] = None
     target_weight_pct: Optional[float] = None
     price_at_rec: float
+    confidence: Optional[float] = None
     reason: Optional[str] = None
     created_at: datetime
     # 채점 결과 (창 경과 후 갱신; benchmark_*는 같은 기간 SPY 수익률)

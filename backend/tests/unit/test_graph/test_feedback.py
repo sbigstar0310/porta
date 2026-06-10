@@ -26,6 +26,7 @@ def make_rec(
     fund: float = None,
     rec_id: int = 1,
     price_at_rec: float = 100.0,
+    confidence: float = None,
     **scoring,
 ) -> RecommendationOut:
     return RecommendationOut(
@@ -36,6 +37,7 @@ def make_rec(
         momo_score=momo,
         fund_score=fund,
         price_at_rec=price_at_rec,
+        confidence=confidence,
         created_at=NOW - timedelta(days=days_ago),
         **scoring,
     )
@@ -147,6 +149,43 @@ class TestBuildScorecard:
         sc = build_scorecard(recs, asof=NOW)
         assert sc["overall"]["calls"] == 0
         assert sc["overall"]["hit_rate"] is None
+
+
+@pytest.mark.unit
+class TestCalibration:
+    def conf_rec(self, rec_id, confidence, hit: bool):
+        # BUY 기준: 초과수익 > 0 이면 적중
+        ret = 0.10 if hit else -0.05
+        return make_rec(
+            ticker=f"T{rec_id}",
+            rec_id=rec_id,
+            confidence=confidence,
+            return_30d=ret,
+            benchmark_return_30d=0.02,
+        )
+
+    def test_calibration_measures_overconfidence(self):
+        # 확신 80%로 4건 중 2건만 적중 → 평균 확신 0.8 vs 적중률 0.5 → 과신 +30%p
+        recs = [self.conf_rec(i, 80.0, hit=(i < 2)) for i in range(4)]
+        cal = build_scorecard(recs, asof=NOW)["calibration"]
+        assert cal["calls"] == 4
+        assert cal["avg_confidence"] == 0.8
+        assert cal["hit_rate"] == 0.5
+        assert cal["overconfidence_gap_pct"] == pytest.approx(30.0)
+        # Brier = (0.8-1)²×2 + (0.8-0)²×2 / 4 = (0.04×2 + 0.64×2)/4 = 0.34
+        assert cal["brier"] == pytest.approx(0.34)
+
+    def test_calibration_ignores_recs_without_confidence(self):
+        recs = [
+            self.conf_rec(1, 70.0, hit=True),
+            make_rec(rec_id=2, ticker="NOCONF", return_30d=0.10, benchmark_return_30d=0.02),
+        ]
+        cal = build_scorecard(recs, asof=NOW)["calibration"]
+        assert cal["calls"] == 1
+
+    def test_calibration_empty(self):
+        cal = build_scorecard([], asof=NOW)["calibration"]
+        assert cal["calls"] == 0 and cal["brier"] is None
 
 
 @pytest.mark.unit

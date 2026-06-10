@@ -151,6 +151,21 @@ class TestBuildValidatedDecisions:
         assert decisions[0].fund_score == 60.0
         assert decisions[0].total_score == pytest.approx(0.65 * 70 + 0.35 * 60, abs=0.1)
 
+    def test_confidence_clamped_and_defaulted(self, portfolio, prices):
+        decisions, _ = build_validated_decisions(
+            [
+                {**make_decision("AAPL", "HOLD"), "confidence": 250},  # 범위 초과 → 클램프
+                make_decision("TSLA", "SELL"),  # 누락 → 기본 50
+            ],
+            portfolio,
+            prices,
+            {},
+            {},
+        )
+        by_ticker = {d.ticker: d for d in decisions}
+        assert by_ticker["AAPL"].confidence == 100.0
+        assert by_ticker["TSLA"].confidence == 50.0
+
     def test_missing_scores_noted(self, portfolio, prices):
         decisions, _ = build_validated_decisions(
             [make_decision("AAPL", "HOLD")], portfolio, prices, {}, {}

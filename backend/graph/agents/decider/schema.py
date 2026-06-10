@@ -12,6 +12,7 @@ class Decision(BaseModel):
     shares_to_trade: float
     trade_value: float
     price: float = 0.0  # 검증에 사용된 시세 (추천 트랙레코드의 price_at_rec)
+    confidence: float = 50.0  # LLM이 매긴 콜 적중 확신도 (0-100), Brier 보정 대상
     total_score: float
     momo_score: float
     fund_score: float
@@ -28,6 +29,7 @@ class DeciderLLMDecision(BaseModel):
     ticker: str
     action: str  # 'BUY' | 'SELL' | 'HOLD' | 'TRIM'
     target_weight_pct: float
+    confidence: float = 50.0  # 이 콜이 맞을 확률에 대한 스스로의 평가 (0-100)
     reason: str
     risk_notes: List[str] = []
 

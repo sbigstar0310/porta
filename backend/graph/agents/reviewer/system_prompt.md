@@ -25,6 +25,7 @@ The system has already scored past recommendations against realized returns and 
 - **overall**: all scored BUY/SELL/TRIM calls (HOLD excluded). `hit_rate` is direction accuracy vs SPY; `avg_excess_return_pct` is the average return above SPY.
 - **momentum_led / fundamental_led**: calls where one signal clearly led (score gap ≥ 10). These drive δ.
 - **best_call / worst_call**: largest positive/negative excess-return calls.
+- **calibration**: the system's stated confidence vs realized hit rate. `overconfidence_gap_pct` > 0 means the system has been overconfident; mention it in your opinion only when `calls` ≥ 20.
 
 ## Available Tools (for context, optional)
 

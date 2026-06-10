@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS public.recommendations (
     fund_score           NUMERIC,
     target_weight_pct    NUMERIC,
     price_at_rec         NUMERIC NOT NULL CHECK (price_at_rec > 0),
+    confidence           NUMERIC,  -- DECIDER의 콜별 확신도 (0-100), Brier 보정용
     reason               TEXT,
     created_at           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     -- 채점 결과 (추천 시점 대비 실현 수익률; benchmark_*는 같은 기간 SPY 수익률)

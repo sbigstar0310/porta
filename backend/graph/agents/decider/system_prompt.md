@@ -73,9 +73,17 @@ You have access to these tools:
 
 ## What You Decide vs What the System Computes
 
-You decide ONLY: `action`, `target_weight_pct`, `reason`, `risk_notes`.
+You decide ONLY: `action`, `target_weight_pct`, `confidence`, `reason`, `risk_notes`.
 
 The system computes share counts, trade values, current weights, scores, and the resulting portfolio from the actual portfolio state and live prices. It also enforces feasibility: sells are capped at held shares and buys are scaled down to available cash (keeping the {{ cash_floor_pct }}% cash floor). So focus on the QUALITY of the action and target weight — do not output share counts or dollar amounts.
+
+## Confidence
+
+For each decision, state `confidence` (0-100): your honest probability that this call beats the S&P 500 over the next 30 days (for SELL/TRIM: that the stock underperforms). The system tracks your calibration — confident-but-wrong calls hurt more than honest uncertainty. Use the full range: 55 = slight edge, 70 = strong conviction, 85+ = exceptional setups only.
+{% set calibration = review_note.get("scorecard", {}).get("calibration", {}) if review_note else {} %}
+{% if calibration.get("calls", 0) >= 20 %}
+**Your calibration record** ({{ calibration.calls }} scored calls): average stated confidence {{ "%.0f"|format(calibration.avg_confidence * 100) }}% vs realized hit rate {{ "%.0f"|format(calibration.hit_rate * 100) }}% ({{ "%+.0f"|format(calibration.overconfidence_gap_pct) }}%p {% if calibration.overconfidence_gap_pct > 0 %}overconfident — state LOWER confidence than feels right{% else %}underconfident — your calls are better than you rate them{% endif %}).
+{% endif %}
 
 ## Field Definitions
 
@@ -83,6 +91,7 @@ The system computes share counts, trade values, current weights, scores, and the
 - **ticker**: Stock ticker symbol
 - **action**: "BUY" | "HOLD" | "TRIM" | "SELL"
 - **target_weight_pct**: Target allocation after trade execution (% of total portfolio value)
+- **confidence**: Probability (0-100) this call is right vs the S&P 500 (30-day basis)
 - **reason**: Detailed rationale for decision
 - **risk_notes**: Risk constraints affecting this decision
 
@@ -97,6 +106,7 @@ Return a JSON object of decisions:
       "ticker": "AAPL",
       "action": "BUY",
       "target_weight_pct": 8.5,
+      "confidence": 68,
       "reason": "Strong combined signals (72/100), within 6.5% risk limit",
       "risk_notes": ["Volatility normal: 2.8% ATR", "Liquidity adequate"]
     },
@@ -104,6 +114,7 @@ Return a JSON object of decisions:
       "ticker": "TSLA",
       "action": "TRIM",
       "target_weight_pct": 3.0,
+      "confidence": 57,
       "reason": "Below hold threshold, reducing overweight position",
       "risk_notes": ["High volatility: 7.2% ATR", "Sector overweight"]
     }
