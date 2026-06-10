@@ -23,6 +23,13 @@ You have access to these tools:
 - **New Candidates**: {{ new_candidates }}
 - **Momentum Scores**: {{ momo_score }}
 - **Fundamental Scores**: {{ fund_score }}
+- **Market Regime** (computed by the system, NOT yours to re-judge): {{ market_regime }}
+
+### Regime-Adjusted Stance
+
+- **risk_off**: Be strictly conservative — tighten volatility/liquidity filters, prefer lower max weights, flag concentration aggressively, and note in `overall_note` that the defensive stance comes from the market environment.
+- **risk_on**: Standard filters apply; do not loosen hard constraints.
+- **neutral**: Standard framework below.
 
 ## Risk Management Framework
 

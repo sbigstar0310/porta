@@ -44,6 +44,13 @@ def run_graph(portfolio: PortfolioOut, user_id: int, language: str = "ko", debug
     if debug:
         logger.info("🤖 LLM 클라이언트 초기화 및 그래프 빌드 완료")
 
+    # 시장 국면 판정 (코드 계산 — DECIDER 임계값/현금 바닥에 반영)
+    from graph.regime import get_market_regime
+
+    market_regime = get_market_regime()
+    if debug:
+        logger.info(f"📈 시장 국면: {market_regime}")
+
     # initial state
     initial_state: ParentState = ParentState(
         messages=[],
@@ -52,6 +59,7 @@ def run_graph(portfolio: PortfolioOut, user_id: int, language: str = "ko", debug
         universe=[pos.ticker for pos in portfolio.positions],
         user_id=user_id,
         language=language,
+        market_regime=market_regime,
     )
 
     if debug:

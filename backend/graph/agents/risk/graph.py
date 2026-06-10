@@ -54,11 +54,14 @@ def build_risk_graph(llm_client):
         if not (momo_end and fund_end and review_end):
             return {}
 
+        market_regime = state.get("market_regime", {}) if isinstance(state, dict) else getattr(state, "market_regime", {})
+
         # 프롬프트 렌더링
         prompt = RISK_SYSTEM_PROMPT.render(
             universe=universe,
             asof=asof,
             new_candidates=new_candidates,
+            market_regime=market_regime or {},
         )
 
         # 에이전트 생성
@@ -99,6 +102,7 @@ def adapt_parent_to_risk_in(parent) -> RiskState:
         "new_candidates": parent.get("new_candidates", []),
         "momo_score": parent.get("momo_score", []),
         "fund_score": parent.get("fund_score", []),
+        "market_regime": parent.get("market_regime", {}),
         "momo_end": parent.get("momo_end", False),
         "fund_end": parent.get("fund_end", False),
         "review_end": parent.get("review_end", False),

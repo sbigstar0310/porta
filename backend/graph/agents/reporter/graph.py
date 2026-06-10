@@ -13,6 +13,11 @@ REPORT_TEMPLATE = load_template(__file__, "report_template.md")
 
 EMPTY_NARRATIVE = {"tldr": "", "stock_comments": [], "market_outlook": ""}
 
+REGIME_LABELS = {
+    "ko": {"risk_on": "안정 상승 국면", "neutral": "중립 국면", "risk_off": "위험 회피 국면 (방어 우선)"},
+    "en": {"risk_on": "Supportive (risk-on)", "neutral": "Neutral", "risk_off": "Defensive (risk-off)"},
+}
+
 
 def render_report(
     asof: str,
@@ -21,9 +26,12 @@ def render_report(
     narrative: dict,
     language: str = "ko",
     review_note: dict | None = None,
+    market_regime: dict | None = None,
 ) -> str:
     """보고서 골격과 모든 수치는 코드가 렌더링하고, LLM 서술은 지정 슬롯에만 들어간다."""
     comments = {c.get("ticker"): c.get("comment") for c in narrative.get("stock_comments", []) if isinstance(c, dict)}
+    market_regime = market_regime or {}
+    labels = REGIME_LABELS.get(language, REGIME_LABELS["ko"])
     return REPORT_TEMPLATE.render(
         asof=asof,
         decisions=decisions,
@@ -32,6 +40,8 @@ def render_report(
         comments=comments,
         language=language,
         review_note=review_note or {},
+        market_regime=market_regime,
+        regime_label=labels.get(market_regime.get("regime")),
     )
 
 
@@ -48,6 +58,7 @@ def build_reporter_graph(llm_client):
         final_portfolio = state_get(state, "final_portfolio")
         language = state_get(state, "language", "ko")
         review_note = state_get(state, "review_note", {})
+        market_regime = state_get(state, "market_regime", {})
 
         prompt = REPORTER_SYSTEM_PROMPT.render(
             asof=asof,
@@ -77,7 +88,10 @@ def build_reporter_graph(llm_client):
             logger.error(f"Reporter LLM invocation failed; rendering report without prose: {e}")
             narrative = EMPTY_NARRATIVE
 
-        report_md = render_report(asof, decisions, final_portfolio, narrative, language, review_note=review_note)
+        report_md = render_report(
+            asof, decisions, final_portfolio, narrative, language,
+            review_note=review_note, market_regime=market_regime,
+        )
         return {"report_md": report_md}
 
     g = StateGraph(ReporterState)
@@ -99,6 +113,7 @@ def adapt_parent_to_reporter_in(parent) -> ReporterState:
         "review_note": parent.get("review_note", {}),
         "risk_note": parent.get("risk_note", {}),
         "final_portfolio": parent.get("final_portfolio", None),
+        "market_regime": parent.get("market_regime", {}),
         "language": parent.get("language", "ko"),
         "decider_end": parent.get("decider_end", False),
     }

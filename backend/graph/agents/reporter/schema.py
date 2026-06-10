@@ -15,6 +15,7 @@ class ReporterState(BaseModel):
     review_note: Dict[str, Any]
     risk_note: Dict[str, Any]
     final_portfolio: Optional[PortfolioOut] = None
+    market_regime: Dict[str, Any] = {}
     language: str = "ko"
     report_md: str | None = None
     decider_end: bool = False

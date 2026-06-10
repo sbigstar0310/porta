@@ -206,7 +206,7 @@ async def score_pending_recommendations(user_id: int, asof: Optional[datetime] =
     if not recs:
         return 0
 
-    spy_closes = _fetch_closes(BENCHMARK_TICKER)
+    spy_closes = fetch_closes(BENCHMARK_TICKER)
     if not spy_closes:
         logger.error("Benchmark price history unavailable; skipping scoring this run")
         return 0
@@ -215,7 +215,7 @@ async def score_pending_recommendations(user_id: int, asof: Optional[datetime] =
     closes_cache: Dict[str, Dict[date, float]] = {}
     for rec in recs:
         if rec.ticker not in closes_cache:
-            closes_cache[rec.ticker] = _fetch_closes(rec.ticker)
+            closes_cache[rec.ticker] = fetch_closes(rec.ticker)
         patch = compute_returns_patch(rec, closes_cache[rec.ticker], spy_closes, asof.date())
         if patch is None:
             continue
@@ -234,8 +234,8 @@ async def get_scorecard(user_id: int, asof: Optional[datetime] = None) -> Dict[s
     return scorecard
 
 
-def _fetch_closes(ticker: str, period: str = "6mo") -> Dict[date, float]:
-    """종가 이력을 날짜→종가 dict로 변환 (휴장일 제외, 24h 캐시 적용)."""
+def fetch_closes(ticker: str, period: str = "6mo") -> Dict[date, float]:
+    """종가 이력을 날짜→종가 dict로 변환 (휴장일 제외, 24h 캐시 적용). regime 모듈도 사용."""
     try:
         data = get_stock_client().get_stock_data([ticker], period=period)
         history = data.get("stock_history", {}).get(ticker)

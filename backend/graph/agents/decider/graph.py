@@ -5,6 +5,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import create_react_agent
 from .schema import DeciderState, DeciderLLMOutput
 from .validation import build_validated_decisions
+from ...regime import regime_rules
 from clients import get_stock_client
 from repo import get_portfolio_repo
 from ...tools.db_data import get_current_portfolio, get_user_id_from_config
@@ -40,6 +41,8 @@ def build_decider_graph(llm_client):
         momo_score = state_get(state, "momo_score", [])
         fund_score = state_get(state, "fund_score", [])
         review_note = state_get(state, "review_note", {})
+        market_regime = state_get(state, "market_regime", {}) or {}
+        rules = regime_rules(market_regime.get("regime", "neutral"))
 
         prompt = DECIDER_SYSTEM_PROMPT.render(
             universe=state_get(state, "universe", []),
@@ -49,6 +52,10 @@ def build_decider_graph(llm_client):
             fund_score=fund_score,
             review_note=review_note,
             risk_note=state_get(state, "risk_note", {}),
+            market_regime=market_regime,
+            buy_threshold=rules["buy_threshold"],
+            candidate_buy_threshold=rules["candidate_buy_threshold"],
+            cash_floor_pct=rules["cash_floor_pct"],
         )
 
         # 에이전트 생성 — LLM은 액션/목표비중/근거만 결정
@@ -84,6 +91,7 @@ def build_decider_graph(llm_client):
             momo_by_ticker={m["ticker"]: m.get("score", {}).get("MOMO") for m in momo_score if isinstance(m, dict)},
             fund_by_ticker={f["ticker"]: f.get("FUND") for f in fund_score if isinstance(f, dict)},
             adjustment=review_note.get("adjustment", 0.0) if isinstance(review_note, dict) else 0.0,
+            cash_floor_pct=rules["cash_floor_pct"],  # 국면별 현금 바닥 (코드 강제)
         )
 
         return {
@@ -107,6 +115,7 @@ def adapt_parent_to_decider_in(parent) -> DeciderState:
         "fund_score": parent.get("fund_score", {}),
         "review_note": parent.get("review_note", {}),
         "risk_note": parent.get("risk_note", {}),
+        "market_regime": parent.get("market_regime", {}),
         "asof": parent.get("asof"),
         "risk_end": parent.get("risk_end", False),
     }

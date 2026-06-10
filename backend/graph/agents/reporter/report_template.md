@@ -72,6 +72,14 @@ _Glossary: **Hit rate** is how often a call beat the S&P 500 over the same perio
 
 ## 시장 전망 및 전략 / Market Outlook & Strategy
 
+{% if regime_label %}
+{% if language == "ko" -%}
+**시장 환경**: {{ regime_label }}{% if market_regime.get("spy_vs_ma200_pct") is not none %} — S&P 500이 1년 평균선 대비 {{ "%+.1f"|format(market_regime.spy_vs_ma200_pct) }}%, 최근 고점 대비 {{ "%+.1f"|format(market_regime.drawdown_pct) }}%, 시장 변동성 {{ "%.0f"|format(market_regime.realized_vol_pct) }}% 수준입니다.{% endif %}
+{%- else -%}
+**Market Environment**: {{ regime_label }}{% if market_regime.get("spy_vs_ma200_pct") is not none %} — S&P 500 is {{ "%+.1f"|format(market_regime.spy_vs_ma200_pct) }}% vs its 1-year average, {{ "%+.1f"|format(market_regime.drawdown_pct) }}% from its recent high, with {{ "%.0f"|format(market_regime.realized_vol_pct) }}% market volatility.{% endif %}
+{%- endif %}
+{% endif %}
+
 {{ narrative.market_outlook }}
 
 ## 면책사항 / Legal Disclaimer

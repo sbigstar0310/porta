@@ -44,6 +44,7 @@ class DeciderState(BaseModel):
     fund_score: List[Dict[str, Any]]
     review_note: Dict[str, Any]
     risk_note: Dict[str, Any]
+    market_regime: Dict[str, Any] = {}
     decisions: List[Decision] | None = None  # 출력: 매매 결정들
     final_portfolio: PortfolioOut | None = None  # 출력: 최종 포트폴리오
     risk_end: bool = False

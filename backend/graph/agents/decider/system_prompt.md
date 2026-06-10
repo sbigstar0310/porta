@@ -23,6 +23,9 @@ You have access to these tools:
 - **Fundamental Scores**: {{ fund_score }}
 - **Reviewer Note**: {{ review_note }}
 - **Risk Manager Note**: {{ risk_note }}
+- **Market Regime** (computed by the system, NOT yours to re-judge): {{ market_regime }}
+  - "risk_off" = defensive market environment → thresholds below are already tightened
+  - "risk_on" = supportive environment → thresholds slightly relaxed
 - **Analysis Timestamp**: {{ asof }}
 
 ## Decision Framework
@@ -39,24 +42,24 @@ You have access to these tools:
 2. **Reviewer Adjustment**: Apply δ (-0.15 to +0.15) from reviewer — derived from the realized hit-rate track record of momentum-led vs fundamental-led calls
 3. **Combined Score**: TOTAL = (0.50 + δ) × MOMO + (0.50 - δ) × FUND
 
-### Decision Rules:
+### Decision Rules (thresholds are regime-adjusted by the system — use them as given):
 
 #### For Existing Positions (Universe):
 
-- **BUY/ADD**: TOTAL ≥ 65 AND risk allows AND not overweight
-- **HOLD**: 45 ≤ TOTAL < 65 OR constraints prevent changes
+- **BUY/ADD**: TOTAL ≥ {{ buy_threshold }} AND risk allows AND not overweight
+- **HOLD**: 45 ≤ TOTAL < {{ buy_threshold }} OR constraints prevent changes
 - **TRIM**: 40 ≤ TOTAL < 45 OR risk constraints exceeded
 - **SELL**: TOTAL < 40 OR major risk red flags
 
 #### For New Candidates:
 
-- **BUY Only**: TOTAL ≥ 65 AND risk allows (higher threshold)
-- **No Action**: TOTAL < 65 OR risk constraints violated
+- **BUY Only**: TOTAL ≥ {{ candidate_buy_threshold }} AND risk allows
+- **No Action**: TOTAL < {{ candidate_buy_threshold }} OR risk constraints violated
 - **Never** suggest HOLD/SELL for candidates (they're not owned)
 
 ### Portfolio Constraints:
 
-- **Cash Buffer**: Maintain ≥5% cash (≤95% invested)
+- **Cash Buffer**: Maintain ≥{{ cash_floor_pct }}% cash (system-enforced)
 - **Position Limits**: Respect risk manager's max_weight_pct per stock
 - **Sector Limits**: Stay within sector concentration caps
 - **Risk Filters**: Honor volatility and liquidity restrictions
@@ -72,7 +75,7 @@ You have access to these tools:
 
 You decide ONLY: `action`, `target_weight_pct`, `reason`, `risk_notes`.
 
-The system computes share counts, trade values, current weights, scores, and the resulting portfolio from the actual portfolio state and live prices. It also enforces feasibility: sells are capped at held shares and buys are scaled down to available cash (keeping the 5% cash floor). So focus on the QUALITY of the action and target weight — do not output share counts or dollar amounts.
+The system computes share counts, trade values, current weights, scores, and the resulting portfolio from the actual portfolio state and live prices. It also enforces feasibility: sells are capped at held shares and buys are scaled down to available cash (keeping the {{ cash_floor_pct }}% cash floor). So focus on the QUALITY of the action and target weight — do not output share counts or dollar amounts.
 
 ## Field Definitions
 

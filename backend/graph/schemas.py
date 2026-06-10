@@ -15,6 +15,7 @@ class ParentState(TypedDict, total=False):
     universe: List[str]  # 현재 보유 티커들
     user_id: int  # 유저 ID
     language: str  # 유저 언어 설정 추가
+    market_regime: Dict[str, Any]  # 시장 국면 (graph/regime.py가 코드로 판정)
 
     # End of Agents
     review_end: bool = False

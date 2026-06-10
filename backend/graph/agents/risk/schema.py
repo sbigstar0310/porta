@@ -43,6 +43,7 @@ class RiskState(BaseModel):
     new_candidates: List[Dict[str, Any]]
     momo_score: List[Dict[str, Any]]
     fund_score: List[Dict[str, Any]]
+    market_regime: Dict[str, Any] = {}
     risk_note: RiskNote | None = None
     risk_end: bool = False
     momo_end: bool = False

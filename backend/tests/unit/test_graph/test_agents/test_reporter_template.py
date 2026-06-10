@@ -167,3 +167,27 @@ class TestRenderReport:
         )
         assert "Trend-led (momentum) calls: 70% hit rate (30 calls)" in md
         assert "Glossary" in md
+
+    def test_market_regime_line(self, final_portfolio):
+        regime = {"regime": "risk_off", "spy_vs_ma200_pct": -4.2, "drawdown_pct": -12.5, "realized_vol_pct": 32.0}
+        kwargs = dict(
+            asof="2026-06-11T09:00:00Z",
+            decisions=[make_decision("AAPL")],
+            final_portfolio=final_portfolio,
+            narrative={"tldr": "", "stock_comments": [], "market_outlook": ""},
+            market_regime=regime,
+        )
+        md_ko = render_report(language="ko", **kwargs)
+        assert "**시장 환경**: 위험 회피 국면 (방어 우선)" in md_ko
+        assert "고점 대비 -12.5%" in md_ko
+        md_en = render_report(language="en", **kwargs)
+        assert "**Market Environment**: Defensive (risk-off)" in md_en
+
+    def test_no_regime_line_when_unavailable(self, final_portfolio):
+        md = render_report(
+            asof="2026-06-11T09:00:00Z",
+            decisions=[make_decision("AAPL")],
+            final_portfolio=final_portfolio,
+            narrative={"tldr": "", "stock_comments": [], "market_outlook": ""},
+        )
+        assert "시장 환경" not in md
