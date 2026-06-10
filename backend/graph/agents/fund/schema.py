@@ -19,6 +19,8 @@ class FundItem(BaseModel):
     label: str  # "Strong" | "Neutral" | "Weak"
     insights: List[str]
     data_confidence: str  # "high" | "medium" | "low"
+    comment: str = ""  # LLM이 작성한 해석 (숫자는 도구 원본만 사용)
+    caveats: List[str] = []  # 데이터 품질/이벤트 관련 주의점
 
 
 class FundState(BaseModel):
@@ -29,8 +31,15 @@ class FundState(BaseModel):
     fund_score: List[FundItem] = []
 
 
-class FundOutput(BaseModel):
+class FundCommentary(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    version: str
-    asof: str
-    fund_score: List[FundItem]
+    ticker: str
+    comment: str
+    caveats: List[str] = []
+
+
+class FundCommentaryOutput(BaseModel):
+    """LLM 출력은 해석만 담는다. 숫자 필드를 두지 않아 환각 경로 자체를 차단한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    commentary: List[FundCommentary]

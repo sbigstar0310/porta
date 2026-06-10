@@ -65,23 +65,21 @@ You have access to these tools:
 
 - **Use Real-Time Data**: Always fetch current market prices using `get_stock_data()` before making decisions
 - **Explicit Actions**: Every decision must specify BUY/HOLD/TRIM/SELL
-- **Quantitative Targets**: Provide specific target weights and share counts based on current market prices
 - **Risk Compliance**: Ensure all decisions respect risk constraints
 - **Portfolio Balance**: Consider aggregate impact on portfolio composition
-- **Price Accuracy**: Use current market prices from `get_stock_data()` for all calculations, not historical or cached prices
+
+## What You Decide vs What the System Computes
+
+You decide ONLY: `action`, `target_weight_pct`, `reason`, `risk_notes`.
+
+The system computes share counts, trade values, current weights, scores, and the resulting portfolio from the actual portfolio state and live prices. It also enforces feasibility: sells are capped at held shares and buys are scaled down to available cash (keeping the 5% cash floor). So focus on the QUALITY of the action and target weight — do not output share counts or dollar amounts.
 
 ## Field Definitions
 
 - **decisions**: Decisions about {{ universe }} and {{ new_candidates }}
 - **ticker**: Stock ticker symbol
 - **action**: "BUY" | "HOLD" | "TRIM" | "SELL"
-- **target_weight_pct**: Target allocation after trade execution
-- **current_weight_pct**: Current allocation in portfolio
-- **shares_to_trade**: Exact shares to buy (+) or sell (-)
-- **trade_value**: Dollar amount of trade (shares × current_price)
-- **total_score**: Combined momentum + fundamental score (0-100)
-- **momo_score**: Momentum score only (0-100)
-- **fund_score**: Fundamental score only (0-100)
+- **target_weight_pct**: Target allocation after trade execution (% of total portfolio value)
 - **reason**: Detailed rationale for decision
 - **risk_notes**: Risk constraints affecting this decision
 
@@ -96,12 +94,6 @@ Return a JSON object of decisions:
       "ticker": "AAPL",
       "action": "BUY",
       "target_weight_pct": 8.5,
-      "current_weight_pct": 6.0,
-      "shares_to_trade": 1.2,
-      "trade_value": 245.0,
-      "total_score": 72,
-      "momo_score": 68,
-      "fund_score": 75,
       "reason": "Strong combined signals (72/100), within 6.5% risk limit",
       "risk_notes": ["Volatility normal: 2.8% ATR", "Liquidity adequate"]
     },
@@ -109,40 +101,9 @@ Return a JSON object of decisions:
       "ticker": "TSLA",
       "action": "TRIM",
       "target_weight_pct": 3.0,
-      "current_weight_pct": 8.0,
-      "shares_to_trade": -2.1,
-      "trade_value": -420.0,
-      "total_score": 48,
-      "momo_score": 55,
-      "fund_score": 42,
       "reason": "Below hold threshold, reducing overweight position",
       "risk_notes": ["High volatility: 7.2% ATR", "Sector overweight"]
     }
-  ],
-  "final_portfolio": {
-    "id": 1,
-    "user_id": 1,
-    "base_currency": "USD",
-    "cash": "1200.00",
-    "updated_at": "2025-01-20T10:30:00Z",
-    "positions": [
-      {
-        "id": 1,
-        "portfolio_id": 1,
-        "ticker": "AAPL",
-        "total_shares": 10.5,
-        "avg_buy_price": 150.25,
-        "updated_at": "2025-01-20T09:30:00Z",
-        "current_price": 165.5,
-        "current_market_value": 1737.75,
-        "unrealized_pnl": 160.12,
-        "unrealized_pnl_pct": 10.15
-      }
-    ],
-    "total_stock_value": 1737.75,
-    "total_value": 2937.75,
-    "total_unrealized_pnl": 160.12,
-    "total_unrealized_pnl_pct": 10.15
-  }
+  ]
 }
 ```

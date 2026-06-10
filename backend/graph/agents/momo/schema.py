@@ -32,6 +32,8 @@ class MomoItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
     ticker: str
     score: MomoScore
+    comment: str = ""  # LLM이 작성한 해석 (숫자는 도구 원본만 사용)
+    caveats: List[str] = []  # 데이터 품질/이벤트 관련 주의점
 
 
 class MomoState(BaseModel):
@@ -42,8 +44,15 @@ class MomoState(BaseModel):
     momo_score: List[MomoItem] = []
 
 
-class MomoOutput(BaseModel):
+class MomoCommentary(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    version: str
-    asof: str
-    momo_score: List[MomoItem]
+    ticker: str
+    comment: str
+    caveats: List[str] = []
+
+
+class MomoCommentaryOutput(BaseModel):
+    """LLM 출력은 해석만 담는다. 숫자 필드를 두지 않아 환각 경로 자체를 차단한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    commentary: List[MomoCommentary]

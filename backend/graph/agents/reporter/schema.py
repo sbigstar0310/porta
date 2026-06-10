@@ -20,5 +20,14 @@ class ReporterState(BaseModel):
     decider_end: bool = False
 
 
-class ReporterOutput(BaseModel):
-    report_md: str
+class StockComment(BaseModel):
+    ticker: str
+    comment: str
+
+
+class ReporterNarrative(BaseModel):
+    """LLM 출력은 서술만 담는다. 수치(점수/비중/수량/금액)는 코드가 템플릿에 주입한다."""
+
+    tldr: str
+    stock_comments: List[StockComment]
+    market_outlook: str

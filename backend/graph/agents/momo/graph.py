@@ -1,73 +1,74 @@
 # agents/momo/graph.py
+import logging
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import create_react_agent
-from .schema import MomoState, MomoOutput
-from jinja2 import Template
+from pydantic import ValidationError
+from .schema import MomoState, MomoItem, MomoCommentaryOutput
 from ...tools.stock_data import calculate_momentum_scores
+from ..utils import (
+    apply_commentary,
+    candidate_tickers,
+    ensure_tool_result,
+    load_template,
+    run_commentary_agent,
+    state_get,
+)
 from langchain_core.runnables.config import RunnableConfig
 
+logger = logging.getLogger(__name__)
 
-def load_system_prompt():
-    import os
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    prompt_path = os.path.join(current_dir, "system_prompt.md")
-    with open(prompt_path, "r") as f:
-        return Template(f.read())
+MOMO_SYSTEM_PROMPT = load_template(__file__)
 
 
-MOMO_SYSTEM_PROMPT = load_system_prompt()
+def _parse_momo_items(tool_result: dict) -> list[MomoItem]:
+    """도구 원본 결과를 MomoItem으로 검증. 정규화 점수 결측은 0.0으로 채운다."""
+    items = []
+    for raw in tool_result.get("momo_score", []):
+        score = raw.get("score", {})
+        norm = {k: v for k, v in score.get("norm", {}).items() if v is not None}
+        score["norm"] = {"z20": 0.0, "z60": 0.0, "zvol": 0.0, **norm}
+        try:
+            items.append(MomoItem.model_validate({"ticker": raw.get("ticker"), "score": score}))
+        except ValidationError as e:
+            logger.warning(f"Skipping invalid momo result for {raw.get('ticker')}: {e}")
+    return items
 
 
 def build_momo_graph(llm_client):
     """LLM 클라이언트를 주입받는 momo graph 빌더"""
 
     def agent_wrapper(state: MomoState, *, config: RunnableConfig | None = None, **kwargs) -> dict:
-        # tools 정의 - 통합된 모멘텀 스코어 계산 도구
-        tools = [calculate_momentum_scores]
+        universe = state_get(state, "universe", [])
+        new_candidates = state_get(state, "new_candidates", [])
 
-        # state가 dict인지 Pydantic 모델인지 확인하고 안전하게 접근
-        if isinstance(state, dict):
-            asof = state.get("asof", "")
-            universe = state.get("universe", [])
-            new_candidates = state.get("new_candidates", [])
-        else:
-            # Pydantic 모델인 경우
-            asof = getattr(state, "asof", "")
-            universe = getattr(state, "universe", [])
-            new_candidates = getattr(state, "new_candidates", [])
-
-        # 프롬프트 렌더링
         prompt = MOMO_SYSTEM_PROMPT.render(
             universe=universe,
-            asof=asof,
+            asof=state_get(state, "asof", ""),
             new_candidates=new_candidates,
         )
 
-        # 에이전트 생성
+        # LLM 출력은 해석(commentary)만 받고, 숫자는 ToolMessage 원본에서 읽는다
         agent = create_react_agent(
             model=llm_client,
-            tools=tools,
+            tools=[calculate_momentum_scores],
             name="momo",
             prompt=prompt,
-            response_format=MomoOutput,
+            response_format=MomoCommentaryOutput,
         )
-        out = agent.invoke(messages=[], input=state, config=config)
+        tool_result, commentary = run_commentary_agent(agent, state, config, tool_name="calculate_momentum_scores")
+        tool_result = ensure_tool_result(
+            tool_result,
+            calculate_momentum_scores,
+            result_key="momo_score",
+            tickers=candidate_tickers(universe, new_candidates),
+        )
+        if tool_result is None:
+            logger.error("Momentum score calculation failed")
+            return {"momo_score": []}
 
-        # structured_response에서 실제 결과 추출
-        if "structured_response" in out and out["structured_response"]:
-            structured_response = out["structured_response"]
-            if isinstance(structured_response, dict):
-                momo_score = structured_response.get("momo_score", [])
-            else:
-                momo_score = getattr(structured_response, "momo_score", [])
-            return {
-                "momo_score": momo_score,
-            }
-        else:
-            # 폴백: 빈 결과 반환
-            return {
-                "momo_score": [],
-            }
+        momo_items = _parse_momo_items(tool_result)
+        apply_commentary(momo_items, commentary)
+        return {"momo_score": momo_items}
 
     g = StateGraph(MomoState)
     g.add_node("MOMO", agent_wrapper)
