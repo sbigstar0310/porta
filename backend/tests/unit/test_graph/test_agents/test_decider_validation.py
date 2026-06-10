@@ -138,7 +138,7 @@ class TestBuildValidatedDecisions:
         assert decisions[0].shares_to_trade == 0.0
 
     def test_scores_recomputed_with_clamped_adjustment(self, portfolio, prices):
-        # adjustment 0.5는 ±0.05로 클램프 → TOTAL = 0.55×MOMO + 0.45×FUND
+        # adjustment 0.5는 ±0.15로 클램프 → TOTAL = 0.65×MOMO + 0.35×FUND
         decisions, _ = build_validated_decisions(
             [make_decision("AAPL", "HOLD")],
             portfolio,
@@ -149,7 +149,7 @@ class TestBuildValidatedDecisions:
         )
         assert decisions[0].momo_score == 70.0
         assert decisions[0].fund_score == 60.0
-        assert decisions[0].total_score == pytest.approx(0.55 * 70 + 0.45 * 60, abs=0.1)
+        assert decisions[0].total_score == pytest.approx(0.65 * 70 + 0.35 * 60, abs=0.1)
 
     def test_missing_scores_noted(self, portfolio, prices):
         decisions, _ = build_validated_decisions(

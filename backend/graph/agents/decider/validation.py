@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 VALID_ACTIONS = {"BUY", "SELL", "HOLD", "TRIM"}
 MIN_SHARES = 1e-9  # 부동소수점 오차로 남는 잔여 수량 제거용
-MAX_ADJUSTMENT = 0.05  # 리뷰어 가중치 조정(δ) 허용 범위
+MAX_ADJUSTMENT = 0.15  # 리뷰어 가중치 조정(δ) 허용 범위 → 가중치 35/65 ~ 65/35
 
 
 @dataclass
@@ -222,6 +222,7 @@ def _to_decision(
         current_weight_pct=round(intent.current_weight_pct, 2),
         shares_to_trade=round(intent.delta_shares, 4),
         trade_value=round(intent.trade_value, 2),
+        price=round(intent.price, 4),
         total_score=round((0.5 + delta) * momo + (0.5 - delta) * fund, 1),
         momo_score=round(momo, 1),
         fund_score=round(fund, 1),

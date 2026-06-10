@@ -386,6 +386,67 @@ class ReportPatch(BaseModel):
         return v.lower()
 
 
+class RecommendationCreate(BaseModel):
+    """추천 기록 생성 스키마 (트랙레코드)"""
+
+    user_id: int = Field(..., gt=0)
+    report_id: Optional[int] = Field(None, description="추천이 포함된 보고서 ID")
+    ticker: str = Field(..., min_length=1, max_length=10)
+    action: str = Field(..., description="BUY | SELL | HOLD | TRIM")
+    total_score: Optional[float] = None
+    momo_score: Optional[float] = None
+    fund_score: Optional[float] = None
+    target_weight_pct: Optional[float] = None
+    price_at_rec: float = Field(..., gt=0, description="추천 시점의 검증된 시세")
+    reason: Optional[str] = None
+
+    @field_validator("action")
+    @classmethod
+    def _validate_action(cls, v):
+        allowed = {"BUY", "SELL", "HOLD", "TRIM"}
+        if v not in allowed:
+            raise ValueError(f"Action must be one of {allowed}")
+        return v
+
+
+class RecommendationOut(BaseModel):
+    """추천 기록 출력 스키마"""
+
+    id: int
+    user_id: int
+    report_id: Optional[int] = None
+    ticker: str
+    action: str
+    total_score: Optional[float] = None
+    momo_score: Optional[float] = None
+    fund_score: Optional[float] = None
+    target_weight_pct: Optional[float] = None
+    price_at_rec: float
+    reason: Optional[str] = None
+    created_at: datetime
+    # 채점 결과 (창 경과 후 갱신; benchmark_*는 같은 기간 SPY 수익률)
+    return_7d: Optional[float] = None
+    return_30d: Optional[float] = None
+    return_60d: Optional[float] = None
+    benchmark_return_7d: Optional[float] = None
+    benchmark_return_30d: Optional[float] = None
+    benchmark_return_60d: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+
+
+class RecommendationReturnsPatch(BaseModel):
+    """추천 채점 결과 갱신 스키마"""
+
+    return_7d: Optional[float] = None
+    return_30d: Optional[float] = None
+    return_60d: Optional[float] = None
+    benchmark_return_7d: Optional[float] = None
+    benchmark_return_30d: Optional[float] = None
+    benchmark_return_60d: Optional[float] = None
+
+
 class TaskProgressOut(BaseModel):
     """
     Celery 태스크 진행 상황 응답 스키마

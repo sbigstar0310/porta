@@ -11,6 +11,7 @@ class Decision(BaseModel):
     current_weight_pct: float
     shares_to_trade: float
     trade_value: float
+    price: float = 0.0  # 검증에 사용된 시세 (추천 트랙레코드의 price_at_rec)
     total_score: float
     momo_score: float
     fund_score: float

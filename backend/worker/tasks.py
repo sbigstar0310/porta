@@ -151,6 +151,16 @@ async def _run_agent_async(
         if not user:
             raise Exception("User not found")
 
+        # 2.5. 지난 추천 채점 (실패해도 파이프라인은 계속)
+        update_progress(task_instance, 13.0, "지난 추천 채점 중...")
+        try:
+            from graph.feedback import score_pending_recommendations
+
+            scored_count = await score_pending_recommendations(user_id=current_user_id)
+            logger.info(f"Scored {scored_count} past recommendations for user {current_user_id}")
+        except Exception as e:
+            logger.error(f"추천 채점 실패 (파이프라인은 계속 진행): {e}")
+
         # 3. Langraph 실행
         update_progress(task_instance, 15.0, "에이전트 파이프라인 실행 중...")
         result = run_graph(portfolio=portfolio, user_id=current_user_id, language=user.language)
@@ -166,6 +176,20 @@ async def _run_agent_async(
             language="ko",
         )
         logger.info(f"Agent report saved: {report}")
+
+        # 4.5. 추천 트랙레코드 기록 (실패해도 이메일 발송은 계속)
+        update_progress(task_instance, 96.0, "추천 기록 중...")
+        try:
+            from graph.feedback import record_recommendations
+
+            recorded_count = await record_recommendations(
+                user_id=current_user_id,
+                report_id=report.id,
+                decisions=result.get("decisions", []),
+            )
+            logger.info(f"Recorded {recorded_count} recommendations for user {current_user_id}")
+        except Exception as e:
+            logger.error(f"추천 기록 실패 (이메일 발송은 계속 진행): {e}")
 
         # 5. 이메일 전송
         update_progress(task_instance, 98.0, "이메일 전송 중...")
