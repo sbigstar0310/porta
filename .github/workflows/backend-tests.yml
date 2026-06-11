@@ -32,7 +32,8 @@ jobs:
         run: >
           uv run pytest -q
           tests/unit/test_graph/
-          tests/unit/test_clients/test_finnhub_client.py
+          tests/unit/test_clients/
+          tests/unit/test_data/
         env:
           TESTING: "1"
           OPENAI_API_KEY: test-openai-key

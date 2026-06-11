@@ -39,6 +39,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "polyfactory>=3.3.0",
     "pytest-asyncio>=1.4.0",
 ]
 

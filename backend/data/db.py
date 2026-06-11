@@ -45,7 +45,9 @@ class Database:
     async def _init_supabase_client(self):
         """Supabase 클라이언트 초기화"""
         try:
-            self._client = get_supabase_client()
+            # 클래스 속성에 저장해야 initialize()의 `cls._client is None` 가드가 동작한다
+            # (인스턴스 속성으로 두면 클래스 상태가 None으로 남아 매번 재초기화됨)
+            Database._client = get_supabase_client()
             logger.info("Supabase 클라이언트가 성공적으로 초기화되었습니다.")
 
         except Exception as e:
