@@ -28,9 +28,16 @@ class TestUserUsecase:
         return MagicMock(spec=Client)
 
     @pytest.fixture
-    def user_usecase(self, mock_user_repo, mock_supabase_client):
+    def mock_portfolio_repo(self):
+        """Mock PortfolioRepo"""
+        from repo.portfolio_repo import PortfolioRepo
+
+        return MagicMock(spec=PortfolioRepo)
+
+    @pytest.fixture
+    def user_usecase(self, mock_user_repo, mock_portfolio_repo, mock_supabase_client):
         """UserUsecase 인스턴스"""
-        return UserUsecase(mock_user_repo, mock_supabase_client)
+        return UserUsecase(mock_user_repo, mock_portfolio_repo, mock_supabase_client)
 
     @pytest.fixture
     def sample_user(self):

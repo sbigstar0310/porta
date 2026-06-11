@@ -37,3 +37,8 @@ dependencies = [
     "celery-redbeat>=2.3.3",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=1.4.0",
+]
+

@@ -29,9 +29,9 @@ class TestPositionUsecase:
         return MagicMock(spec=Client)
 
     @pytest.fixture
-    def position_usecase(self, mock_position_repo, mock_supabase_client):
+    def position_usecase(self, mock_position_repo):
         """PositionUsecase 인스턴스"""
-        return PositionUsecase(mock_position_repo, mock_supabase_client)
+        return PositionUsecase(mock_position_repo)
 
     @pytest.fixture
     def sample_position(self):
@@ -44,12 +44,11 @@ class TestPositionUsecase:
         """테스트용 포지션 생성 데이터"""
         return PositionCreate(portfolio_id=1, symbol="AAPL", shares=Decimal("10.0"), average_price=Decimal("150.00"))
 
-    def test_position_usecase_initialization(self, mock_position_repo, mock_supabase_client):
+    def test_position_usecase_initialization(self, mock_position_repo):
         """PositionUsecase 초기화 테스트"""
-        usecase = PositionUsecase(mock_position_repo, mock_supabase_client)
+        usecase = PositionUsecase(mock_position_repo)
 
         assert usecase.position_repo == mock_position_repo
-        assert usecase.supabase_client == mock_supabase_client
 
     def test_create_position_success(
         self, position_usecase, mock_position_repo, sample_position_create, sample_position

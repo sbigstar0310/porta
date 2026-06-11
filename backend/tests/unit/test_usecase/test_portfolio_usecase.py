@@ -29,9 +29,9 @@ class TestPortfolioUsecase:
         return MagicMock(spec=Client)
 
     @pytest.fixture
-    def portfolio_usecase(self, mock_portfolio_repo, mock_supabase_client):
+    def portfolio_usecase(self, mock_portfolio_repo):
         """PortfolioUsecase 인스턴스"""
-        return PortfolioUsecase(mock_portfolio_repo, mock_supabase_client)
+        return PortfolioUsecase(mock_portfolio_repo)
 
     @pytest.fixture
     def sample_portfolio(self):
@@ -44,12 +44,11 @@ class TestPortfolioUsecase:
         """테스트용 포트폴리오 생성 데이터"""
         return PortfolioCreate(user_id=1, name="테스트 포트폴리오", description="테스트용 포트폴리오", currency="USD")
 
-    def test_portfolio_usecase_initialization(self, mock_portfolio_repo, mock_supabase_client):
+    def test_portfolio_usecase_initialization(self, mock_portfolio_repo):
         """PortfolioUsecase 초기화 테스트"""
-        usecase = PortfolioUsecase(mock_portfolio_repo, mock_supabase_client)
+        usecase = PortfolioUsecase(mock_portfolio_repo)
 
         assert usecase.portfolio_repo == mock_portfolio_repo
-        assert usecase.supabase_client == mock_supabase_client
 
     def test_create_portfolio_success(
         self, portfolio_usecase, mock_portfolio_repo, sample_portfolio_create, sample_portfolio
