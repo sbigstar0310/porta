@@ -4,23 +4,18 @@
 
 ## 에이전트 로드맵 (다음 작업)
 
-### 1. 2-2. 사용자별 리스크 성향 + 투자 경험 수준 (풀스택)
-- [ ] `users`에 `risk_tolerance`(conservative/moderate/aggressive), `experience_level`(beginner/advanced) 컬럼 + 마이그레이션
-- [ ] 설정 API (GET/PATCH) + 프론트 설정 화면
-- [ ] 성향별 코드 규칙: 종목 상한·현금 바닥·매수 임계값 차등 (validation 강제, regime 규칙과 합성)
-- [ ] RISK/DECIDER/REPORTER 프롬프트 페르소나 반영, 경험 수준별 보고서 상세도 조절
-
-### 2. 2-3. Bull/Bear 토론 에이전트
+### 1. Bull/Bear 토론 에이전트
+현재 파이프라인엔 반대 논거를 생성하는 단계가 없음(전부 한 방향: 발굴→점수→결정). XOM 48점 BUY 사건이 실증한 구조적 맹점 — 임계값 게이트는 증상 차단, 토론은 나쁜 결정이 덜 나오게 하는 원인 치료. 토론 결과는 보고서 "강세/약세 논리" 섹션으로 그대로 사용자 가치가 됨.
 - [ ] MOMO/FUND ↔ RISK 사이 토론 서브그래프 (강세/약세 연구원, 2라운드, 구조화 요약 교환)
 - [ ] 비용 제어: 결정 경계 종목만 토론 (점수 55~75 또는 신호 불일치 또는 신규 후보 상위 N)
-- [ ] 보고서 "강세 논리 / 약세 논리" 섹션 (토론 결과 = 사용자 가치)
+- [ ] 보고서 "강세 논리 / 약세 논리" 섹션 (SELL 권고의 감정적 수용성 개선 포함)
 
-### 3. Phase 4. 백테스트 하네스
+### 2. Phase 4. 백테스트 하네스
 - [ ] 과거 시점 리플레이로 상수 검증·튜닝: δ 계수(0.75)·shrink(n/20)·클램프(±0.15), 국면 임계값, 매수 기준(62/65/72), 채점 창(30일)
 - [ ] 룩어헤드 차단: 모델 컷오프 이후 기간으로만 평가 (LLM 암기 효과 배제)
 - [ ] 트랙레코드 수 주 축적 후 착수 권장
 
-### 4. OpenRouter 멀티 프로바이더 — 저비용·고효율 모델 운용
+### 3. OpenRouter 멀티 프로바이더 — 저비용·고효율 모델 운용
 현재 파이프라인이 OpenAI API 단일 의존. OpenRouter를 붙여 상황에 따라 저비용 모델로도 구동 가능하게.
 - [ ] `graph/llm_clients/openrouter_client.py` — OpenRouter는 OpenAI 호환 API라 `ChatOpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)`로 기존 클라이언트 재사용 가능
 - [ ] tier→모델 매핑을 프로바이더별 설정으로 분리 (`LLM_PROVIDER` env로 전환, `AGENT_TIERS`/`build_root_graph(llm_factory=...)` 구조는 그대로)
