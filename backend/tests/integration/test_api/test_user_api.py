@@ -1,172 +1,126 @@
 # tests/integration/test_api/test_user_api.py
-"""
-User API 통합 테스트
+"""User / Auth API 통합 테스트.
+
+실제 dev Supabase 유저(auth_user 픽스처)로 사용자 조회와 인증 플로우를 검증한다.
+- 회원가입(POST /users)과 인증 메일 재발송은 실제 메일을 발송하므로 테스트하지 않는다.
 """
 import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
-from datetime import datetime, timezone
 
-from app import app
-from tests.fixtures.mock_data import MockDataGenerator
+from tests.fixtures.integration_env import TEST_PASSWORD
+
+pytestmark = [pytest.mark.integration, pytest.mark.api]
+
+# 존재할 수 없는 충분히 큰 user_id
+NONEXISTENT_USER_ID = 2_147_000_000
 
 
-@pytest.mark.integration
 class TestUserAPI:
-    """User API 통합 테스트"""
+    """GET /users/{user_id}"""
 
-    @pytest.fixture
-    def client(self):
-        """테스트 클라이언트"""
-        return TestClient(app)
-
-    @pytest.fixture
-    def sample_user_data(self):
-        """테스트용 사용자 데이터"""
-        return MockDataGenerator.create_user()
-
-    @patch("routers.user.get_user_usecase")
-    def test_get_user_success(self, mock_get_usecase, client, sample_user_data):
-        """사용자 조회 성공 테스트"""
-        # Mock usecase
-        mock_usecase = MagicMock()
-        mock_usecase.get_user_profile.return_value = MockDataGenerator.create_user(user_id=1)
-        mock_get_usecase.return_value = mock_usecase
-
-        response = client.get("/users/1")
+    def test_get_own_user(self, api_client, auth_headers, auth_user):
+        """자기 자신 조회: 200 + 이메일 일치."""
+        response = api_client.get(f"/users/{auth_user['user_id']}", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == 1
-        assert "email" in data
+        assert data["id"] == auth_user["user_id"]
+        assert data["email"] == auth_user["email"]
         assert "timezone" in data
         assert "language" in data
 
-    @patch("routers.user.get_user_usecase")
-    def test_get_user_not_found(self, mock_get_usecase, client):
-        """사용자 조회 실패 테스트"""
-        # Mock usecase to return None
-        mock_usecase = MagicMock()
-        mock_usecase.get_user_profile.return_value = None
-        mock_get_usecase.return_value = mock_usecase
+    @pytest.mark.xfail(
+        reason=(
+            "소스 버그: UserRepo.get_by_id(repo/user_repo.py)가 DB 행의 email_verified를 "
+            "User 모델에 매핑하지 않아 항상 기본값 False로 응답함. "
+            "올바른 동작은 DB 값(True) 반환."
+        ),
+        strict=True,
+    )
+    def test_get_own_user_email_verified_reflects_db(self, api_client, auth_headers, auth_user):
+        """인증 완료 유저 조회 시 email_verified=True여야 한다 (현재 소스 버그로 False)."""
+        response = api_client.get(f"/users/{auth_user['user_id']}", headers=auth_headers)
 
-        response = client.get("/users/999")
+        assert response.status_code == 200
+        assert response.json()["email_verified"] is True
+
+    def test_get_nonexistent_user_returns_404(self, api_client, auth_headers):
+        """존재하지 않는 user_id 조회: 404."""
+        response = api_client.get(f"/users/{NONEXISTENT_USER_ID}", headers=auth_headers)
 
         assert response.status_code == 404
-        data = response.json()
-        assert "사용자를 찾을 수 없습니다" in data["detail"]
 
-    @patch("routers.user.get_user_usecase")
-    def test_create_user_success(self, mock_get_usecase, client):
-        """사용자 생성 성공 테스트"""
-        # Mock usecase
-        mock_usecase = MagicMock()
-        created_user = MockDataGenerator.create_user(user_id=1)
-        mock_usecase.create_user.return_value = created_user
-        mock_get_usecase.return_value = mock_usecase
+    def test_protected_endpoint_without_token(self, api_client):
+        """토큰 없이 보호된 엔드포인트 접근: 401/403.
 
-        user_data = {"email": "test@example.com", "timezone": "Asia/Seoul", "language": "ko"}
+        주의: GET /users/{id} 자체는 인증 의존성이 없어(소스 이슈) 보호 동작은
+        대표적인 보호 엔드포인트(GET /portfolio)로 검증한다.
+        """
+        response = api_client.get("/portfolio")
 
-        response = client.post("/users", json=user_data)
+        assert response.status_code in (401, 403)
 
-        assert response.status_code == 201
-        data = response.json()
-        assert data["email"] == "test@example.com"
-        assert data["timezone"] == "Asia/Seoul"
-        assert data["language"] == "ko"
+    def test_protected_endpoint_with_invalid_token(self, api_client):
+        """위조/무효 토큰으로 접근: 401/403."""
+        response = api_client.get(
+            "/portfolio", headers={"Authorization": "Bearer this-is-not-a-valid-jwt"}
+        )
 
-    @patch("routers.user.get_user_usecase")
-    def test_create_user_invalid_data(self, mock_get_usecase, client):
-        """잘못된 데이터로 사용자 생성 테스트"""
-        invalid_data = {
-            "email": "invalid-email",  # 잘못된 이메일 형식
-            "timezone": "Invalid/Zone",
-            "language": "invalid",
-        }
+        assert response.status_code in (401, 403)
 
-        response = client.post("/users", json=invalid_data)
 
-        assert response.status_code == 422  # Validation Error
-        data = response.json()
-        assert "detail" in data
+class TestAuthAPI:
+    """POST /auth/login, /auth/refresh, GET /auth/email-verification-status/{email}"""
 
-    @patch("routers.user.get_user_usecase")
-    def test_update_user_success(self, mock_get_usecase, client):
-        """사용자 정보 업데이트 성공 테스트"""
-        # Mock usecase
-        mock_usecase = MagicMock()
-        updated_user = MockDataGenerator.create_user(user_id=1, timezone="America/New_York", language="en")
-        mock_usecase.update_user_profile.return_value = updated_user
-        mock_get_usecase.return_value = mock_usecase
-
-        update_data = {"timezone": "America/New_York", "language": "en"}
-
-        response = client.put("/users/1", json=update_data)
+    def test_login_returns_tokens(self, api_client, auth_user):
+        """실제 dev 유저로 로그인: 200 + 액세스/리프레시 토큰 포함."""
+        response = api_client.post(
+            "/auth/login",
+            data={"email": auth_user["email"], "password": TEST_PASSWORD},
+        )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["timezone"] == "America/New_York"
-        assert data["language"] == "en"
+        assert data["id"] == auth_user["user_id"]
+        assert data["email"] == auth_user["email"]
+        assert data["access_token"]
+        assert data["refresh_token"]
 
-    @patch("routers.user.get_user_usecase")
-    def test_delete_user_success(self, mock_get_usecase, client):
-        """사용자 삭제 성공 테스트"""
-        # Mock usecase
-        mock_usecase = MagicMock()
-        mock_usecase.delete_user.return_value = {"id": 1}
-        mock_get_usecase.return_value = mock_usecase
+    def test_login_with_wrong_password_fails(self, api_client, auth_user):
+        """잘못된 비밀번호 로그인: 4xx/5xx (성공해서는 안 됨)."""
+        response = api_client.post(
+            "/auth/login",
+            data={"email": auth_user["email"], "password": "definitely-wrong-pw-1!"},
+        )
 
-        response = client.delete("/users/1")
+        assert response.status_code >= 400
+
+    def test_refresh_token_rotates_session(self, api_client, auth_user):
+        """리프레시 토큰으로 세션 갱신: 새 토큰 발급.
+
+        세션 픽스처의 refresh_token을 소모하지 않도록, 먼저 로그인으로
+        새 세션(토큰 패밀리)을 만들고 그 refresh_token을 갱신한다.
+        """
+        login = api_client.post(
+            "/auth/login",
+            data={"email": auth_user["email"], "password": TEST_PASSWORD},
+        )
+        assert login.status_code == 200
+        fresh_refresh_token = login.json()["refresh_token"]
+
+        response = api_client.post("/auth/refresh", data={"refresh_token": fresh_refresh_token})
 
         assert response.status_code == 200
         data = response.json()
-        assert "삭제되었습니다" in data["message"]
+        assert data["email"] == auth_user["email"]
+        assert data["access_token"]
+        assert data["refresh_token"]
 
-    def test_user_api_invalid_user_id(self, client):
-        """잘못된 사용자 ID 테스트"""
-        # 문자열 ID
-        response = client.get("/users/invalid")
-        assert response.status_code == 422
+    def test_email_verification_status(self, api_client, auth_user):
+        """이메일 인증 상태 확인 (토큰 불필요): 인증 완료 유저는 True."""
+        response = api_client.get(f"/auth/email-verification-status/{auth_user['email']}")
 
-        # 음수 ID
-        response = client.get("/users/-1")
-        assert response.status_code == 422
-
-    @patch("routers.user.get_user_usecase")
-    def test_user_api_internal_error(self, mock_get_usecase, client):
-        """내부 서버 오류 테스트"""
-        # Mock usecase to raise exception
-        mock_usecase = MagicMock()
-        mock_usecase.get_user_profile.side_effect = Exception("Internal error")
-        mock_get_usecase.return_value = mock_usecase
-
-        response = client.get("/users/1")
-
-        assert response.status_code == 500
-
-    def test_user_api_cors_headers(self, client):
-        """CORS 헤더 테스트"""
-        response = client.get("/users/1")
-
-        # CORS 미들웨어가 설정되어 있으므로 CORS 관련 헤더가 있어야 함
-        # 실제 헤더는 구현에 따라 다를 수 있음
-        assert response.status_code in [200, 404, 500]  # 상태에 관계없이 응답이 와야 함
-
-    @patch("routers.user.get_user_usecase")
-    def test_user_api_performance(self, mock_get_usecase, client):
-        """사용자 API 성능 테스트"""
-        import time
-
-        # Mock usecase
-        mock_usecase = MagicMock()
-        mock_usecase.get_user_profile.return_value = MockDataGenerator.create_user()
-        mock_get_usecase.return_value = mock_usecase
-
-        start_time = time.time()
-        response = client.get("/users/1")
-        end_time = time.time()
-
-        # 응답 시간이 2초 이내여야 함
-        response_time = end_time - start_time
-        assert response_time < 2.0
         assert response.status_code == 200
+        data = response.json()
+        assert data["email"] == auth_user["email"]
+        assert data["email_verified"] is True
+        assert "timestamp" in data

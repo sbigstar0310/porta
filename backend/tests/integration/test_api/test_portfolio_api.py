@@ -1,249 +1,155 @@
 # tests/integration/test_api/test_portfolio_api.py
+"""Portfolio / Position API 통합 테스트.
+
+실제 dev Supabase의 포트폴리오(현금 $10,000, 포지션 없음)를 상대로
+조회/수정과 포지션 CRUD 풀 사이클을 검증한다. 생성한 행은 테스트 내에서 정리한다.
 """
-Portfolio API 통합 테스트
-"""
-import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 from decimal import Decimal
 
-from app import app
-from tests.fixtures.mock_data import MockDataGenerator
+import pytest
+
+pytestmark = [pytest.mark.integration, pytest.mark.api]
 
 
-@pytest.mark.integration
 class TestPortfolioAPI:
-    """Portfolio API 통합 테스트"""
+    """GET /portfolio, PATCH /portfolio"""
 
-    @pytest.fixture
-    def client(self):
-        """테스트 클라이언트"""
-        return TestClient(app)
-
-    @pytest.fixture
-    def sample_portfolio_data(self):
-        """테스트용 포트폴리오 데이터"""
-        return MockDataGenerator.create_portfolio()
-
-    @patch("routers.portfolio.get_portfolio_usecase")
-    def test_get_portfolio_success(self, mock_get_usecase, client, sample_portfolio_data):
-        """포트폴리오 조회 성공 테스트"""
-        # Mock usecase
-        mock_usecase = MagicMock()
-        mock_usecase.get_portfolio.return_value = sample_portfolio_data
-        mock_get_usecase.return_value = mock_usecase
-
-        response = client.get("/portfolios/1")
+    def test_get_portfolio(self, api_client, auth_headers, auth_user):
+        """포트폴리오 조회: 200 + 소유자/통화/현금/포지션 목록 확인."""
+        response = api_client.get("/portfolio", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == sample_portfolio_data["id"]
-        assert data["name"] == sample_portfolio_data["name"]
-        assert "total_value" in data
+        assert data["user_id"] == auth_user["user_id"]
+        assert data["base_currency"] == "USD"
+        assert "cash" in data
+        assert Decimal(str(data["cash"])) >= 0
+        assert isinstance(data["positions"], list)
 
-    @patch("routers.portfolio.get_portfolio_usecase")
-    def test_get_portfolio_not_found(self, mock_get_usecase, client):
-        """포트폴리오 조회 실패 테스트"""
-        # Mock usecase to return None
-        mock_usecase = MagicMock()
-        mock_usecase.get_portfolio.return_value = None
-        mock_get_usecase.return_value = mock_usecase
+    def test_patch_portfolio_cash_and_restore(self, api_client, auth_headers):
+        """현금 수정 후 재조회로 반영 확인, 마지막에 원래 값으로 복원."""
+        original = api_client.get("/portfolio", headers=auth_headers)
+        assert original.status_code == 200
+        original_cash = str(original.json()["cash"])
 
-        response = client.get("/portfolios/999")
+        new_cash = "5432.10"
+        try:
+            patched = api_client.patch("/portfolio", headers=auth_headers, json={"cash": new_cash})
+            assert patched.status_code == 200
+            assert Decimal(str(patched.json()["cash"])) == Decimal(new_cash)
 
-        assert response.status_code == 404
-        data = response.json()
-        assert "포트폴리오를 찾을 수 없습니다" in data["detail"]
+            # 재조회로 영속 반영 확인
+            refetched = api_client.get("/portfolio", headers=auth_headers)
+            assert refetched.status_code == 200
+            assert Decimal(str(refetched.json()["cash"])) == Decimal(new_cash)
+        finally:
+            # 복원 (다른 테스트의 전제 조건 유지)
+            restored = api_client.patch(
+                "/portfolio", headers=auth_headers, json={"cash": original_cash}
+            )
+            assert restored.status_code == 200
+            assert Decimal(str(restored.json()["cash"])) == Decimal(original_cash)
 
-    @patch("routers.portfolio.get_portfolio_usecase")
-    def test_create_portfolio_success(self, mock_get_usecase, client):
-        """포트폴리오 생성 성공 테스트"""
-        # Mock usecase
-        mock_usecase = MagicMock()
-        created_portfolio = MockDataGenerator.create_portfolio()
-        mock_usecase.create_portfolio.return_value = created_portfolio
-        mock_get_usecase.return_value = mock_usecase
+    def test_get_portfolio_without_token(self, api_client):
+        """토큰 없이 조회: 401/403."""
+        response = api_client.get("/portfolio")
 
-        portfolio_data = {
-            "user_id": 1,
-            "name": "테스트 포트폴리오",
-            "description": "테스트용 포트폴리오",
-            "currency": "USD",
-        }
+        assert response.status_code in (401, 403)
 
-        response = client.post("/portfolios", json=portfolio_data)
+    def test_patch_portfolio_with_invalid_token(self, api_client):
+        """무효 토큰으로 수정 시도: 401/403 (데이터 변경 없어야 함)."""
+        response = api_client.patch(
+            "/portfolio",
+            headers={"Authorization": "Bearer invalid-token"},
+            json={"cash": "1.00"},
+        )
 
-        assert response.status_code == 201
-        data = response.json()
-        assert data["name"] == "테스트 포트폴리오"
-        assert data["currency"] == "USD"
+        assert response.status_code in (401, 403)
 
-    @patch("routers.portfolio.get_portfolio_usecase")
-    def test_create_portfolio_invalid_data(self, mock_get_usecase, client):
-        """잘못된 데이터로 포트폴리오 생성 테스트"""
-        invalid_data = {
-            "user_id": "invalid",  # 숫자가 아닌 user_id
-            "name": "",  # 빈 이름
-            "currency": "INVALID",  # 잘못된 통화 코드
-        }
 
-        response = client.post("/portfolios", json=invalid_data)
+class TestPositionAPI:
+    """POST/GET/PATCH/DELETE /position — 생성→조회→수정→삭제 풀 사이클."""
 
-        assert response.status_code == 422
-        data = response.json()
-        assert "detail" in data
+    def test_position_full_lifecycle(self, api_client, auth_headers, auth_user):
+        """AAPL 포지션 생성→조회→수정→삭제, 종료 시 포트폴리오는 다시 빈 상태."""
+        portfolio = api_client.get("/portfolio", headers=auth_headers)
+        assert portfolio.status_code == 200
+        portfolio_id = portfolio.json()["id"]
 
-    @patch("routers.portfolio.get_portfolio_usecase")
-    def test_get_user_portfolios_success(self, mock_get_usecase, client):
-        """사용자 포트폴리오 목록 조회 성공 테스트"""
-        # Mock usecase
-        mock_usecase = MagicMock()
-        portfolios = MockDataGenerator.create_multiple_portfolios(3, user_id=1)
-        mock_usecase.get_user_portfolios.return_value = portfolios
-        mock_get_usecase.return_value = mock_usecase
+        position_id = None
+        try:
+            # 1. 생성
+            created = api_client.post(
+                "/position/",
+                headers=auth_headers,
+                json={
+                    "portfolio_id": portfolio_id,
+                    "ticker": "AAPL",
+                    "total_shares": 10,
+                    "avg_buy_price": 150.25,
+                },
+            )
+            assert created.status_code == 200
+            created_data = created.json()
+            position_id = created_data["id"]
+            assert created_data["portfolio_id"] == portfolio_id
+            assert created_data["ticker"] == "AAPL"
+            assert Decimal(str(created_data["total_shares"])) == Decimal("10")
+            assert Decimal(str(created_data["avg_buy_price"])) == Decimal("150.25")
 
-        response = client.get("/portfolios/user/1")
+            # 2. 단건 조회 (실시간 가격 필드는 시세 조회 실패 시 None 허용)
+            fetched = api_client.get(f"/position/{position_id}", headers=auth_headers)
+            assert fetched.status_code == 200
+            fetched_data = fetched.json()
+            assert fetched_data["id"] == position_id
+            assert fetched_data["ticker"] == "AAPL"
+            assert "current_price" in fetched_data  # 값은 None일 수 있음
 
-        assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
-        assert len(data) == 3
-        assert all(portfolio["user_id"] == 1 for portfolio in data)
+            # 3. 수정
+            patched = api_client.patch(
+                f"/position/{position_id}",
+                headers=auth_headers,
+                json={"total_shares": 5, "avg_buy_price": 160.00},
+            )
+            assert patched.status_code == 200
+            patched_data = patched.json()
+            assert Decimal(str(patched_data["total_shares"])) == Decimal("5")
+            assert Decimal(str(patched_data["avg_buy_price"])) == Decimal("160")
 
-    @patch("routers.portfolio.get_portfolio_usecase")
-    def test_update_portfolio_success(self, mock_get_usecase, client):
-        """포트폴리오 업데이트 성공 테스트"""
-        # Mock usecase
-        mock_usecase = MagicMock()
-        updated_portfolio = MockDataGenerator.create_portfolio(name="업데이트된 포트폴리오")
-        mock_usecase.update_portfolio.return_value = updated_portfolio
-        mock_get_usecase.return_value = mock_usecase
+            # 4. 포트폴리오에 반영 확인
+            portfolio_after = api_client.get("/portfolio", headers=auth_headers)
+            assert portfolio_after.status_code == 200
+            tickers = [p["ticker"] for p in portfolio_after.json()["positions"]]
+            assert "AAPL" in tickers
 
-        update_data = {"name": "업데이트된 포트폴리오", "description": "업데이트된 설명"}
+            # 5. 삭제
+            deleted = api_client.delete(f"/position/{position_id}", headers=auth_headers)
+            assert deleted.status_code == 200
+            assert deleted.json()["success"] is True
+            position_id = None  # 정리 완료 표시
 
-        response = client.put("/portfolios/1", json=update_data)
+            # 6. 포트폴리오가 다시 빈 상태인지 확인
+            portfolio_final = api_client.get("/portfolio", headers=auth_headers)
+            assert portfolio_final.status_code == 200
+            assert all(p["ticker"] != "AAPL" for p in portfolio_final.json()["positions"])
+        finally:
+            # 어서션 실패 시에도 생성한 포지션은 반드시 정리
+            if position_id is not None:
+                api_client.delete(f"/position/{position_id}", headers=auth_headers)
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["name"] == "업데이트된 포트폴리오"
-
-    @patch("routers.portfolio.get_portfolio_usecase")
-    def test_delete_portfolio_success(self, mock_get_usecase, client):
-        """포트폴리오 삭제 성공 테스트"""
-        # Mock usecase
-        mock_usecase = MagicMock()
-        mock_usecase.delete_portfolio.return_value = {"id": 1}
-        mock_get_usecase.return_value = mock_usecase
-
-        response = client.delete("/portfolios/1")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "삭제되었습니다" in data["message"]
-
-    @patch("routers.portfolio.get_portfolio_usecase")
-    def test_get_portfolio_summary_success(self, mock_get_usecase, client):
-        """포트폴리오 요약 정보 조회 성공 테스트"""
-        # Mock usecase
-        mock_usecase = MagicMock()
-        summary_data = {
-            "id": 1,
-            "name": "테스트 포트폴리오",
-            "total_value": Decimal("15000.00"),
-            "position_count": 5,
-            "total_gain_loss": Decimal("1500.00"),
-            "return_percentage": Decimal("11.11"),
-        }
-        mock_usecase.get_portfolio_summary.return_value = summary_data
-        mock_get_usecase.return_value = mock_usecase
-
-        response = client.get("/portfolios/1/summary")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["id"] == 1
-        assert "total_value" in data
-        assert "position_count" in data
-
-    @patch("routers.portfolio.get_portfolio_usecase")
-    def test_portfolio_access_control(self, mock_get_usecase, client):
-        """포트폴리오 접근 제어 테스트"""
-        # Mock usecase for ownership validation
-        mock_usecase = MagicMock()
-        mock_usecase.validate_portfolio_ownership.return_value = False
-        mock_get_usecase.return_value = mock_usecase
-
-        response = client.get("/portfolios/1")
-
-        # 실제 구현에 따라 상태 코드가 다를 수 있음
-        # 소유권 검증이 실패하면 403 Forbidden 또는 404 Not Found
-        assert response.status_code in [403, 404]
-
-    def test_portfolio_api_invalid_ids(self, client):
-        """잘못된 ID 값 테스트"""
-        # 문자열 포트폴리오 ID
-        response = client.get("/portfolios/invalid")
-        assert response.status_code == 422
-
-        # 음수 ID
-        response = client.get("/portfolios/-1")
-        assert response.status_code == 422
-
-        # 0 ID
-        response = client.get("/portfolios/0")
-        assert response.status_code == 422
-
-    @patch("routers.portfolio.get_portfolio_usecase")
-    def test_portfolio_api_performance(self, mock_get_usecase, client):
-        """포트폴리오 API 성능 테스트"""
-        import time
-
-        # Mock usecase
-        mock_usecase = MagicMock()
-        mock_usecase.get_portfolio.return_value = MockDataGenerator.create_portfolio()
-        mock_get_usecase.return_value = mock_usecase
-
-        start_time = time.time()
-        response = client.get("/portfolios/1")
-        end_time = time.time()
-
-        # 응답 시간이 2초 이내여야 함
-        response_time = end_time - start_time
-        assert response_time < 2.0
-        assert response.status_code == 200
-
-    @patch("routers.portfolio.get_portfolio_usecase")
-    def test_portfolio_api_concurrent_requests(self, mock_get_usecase, client):
-        """포트폴리오 API 동시 요청 테스트"""
-        # Mock usecase
-        mock_usecase = MagicMock()
-        mock_usecase.get_portfolio.return_value = MockDataGenerator.create_portfolio()
-        mock_get_usecase.return_value = mock_usecase
-
-        # 동시에 여러 요청 보내기
-        responses = []
-        for i in range(5):
-            response = client.get(f"/portfolios/{i+1}")
-            responses.append(response)
-
-        # 모든 요청이 처리되어야 함
-        for response in responses:
-            assert response.status_code in [200, 404]  # 성공 또는 Not Found
-
-    @patch("routers.portfolio.get_portfolio_usecase")
-    def test_portfolio_decimal_precision(self, mock_get_usecase, client):
-        """포트폴리오 Decimal 정밀도 테스트"""
-        # Mock usecase
-        mock_usecase = MagicMock()
-        portfolio_data = MockDataGenerator.create_portfolio(total_value=Decimal("12345.6789"))
-        mock_usecase.get_portfolio.return_value = portfolio_data
-        mock_get_usecase.return_value = mock_usecase
-
-        response = client.get("/portfolios/1")
-
-        assert response.status_code == 200
-        data = response.json()
-        # JSON 직렬화에서 Decimal 처리 확인
-        assert "total_value" in data
-        # 값이 문자열 또는 숫자로 올바르게 직렬화되었는지 확인
-        assert data["total_value"] is not None
+    def test_position_endpoints_require_auth(self, api_client):
+        """포지션 엔드포인트는 토큰 없이는 401/403."""
+        assert api_client.get("/position/1").status_code in (401, 403)
+        assert (
+            api_client.post(
+                "/position/",
+                json={
+                    "portfolio_id": 1,
+                    "ticker": "AAPL",
+                    "total_shares": 1,
+                    "avg_buy_price": 1,
+                },
+            ).status_code
+            in (401, 403)
+        )
+        assert api_client.delete("/position/1").status_code in (401, 403)
