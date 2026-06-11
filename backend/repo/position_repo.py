@@ -85,10 +85,9 @@ class PositionRepo(BaseRepo):
 
     async def get_by_id(self, id: int) -> Optional[PositionOut]:
         response = self.db_client.table(self.table_name).select("*").eq("id", id).execute()
-        data = response.data[0]
-        if not data:
-            raise Exception("Failed to get position")
-        return PositionOut(**data)
+        if not response.data:
+            return None  # 빈 결과에 data[0]을 먼저 읽으면 IndexError(500)가 나던 버그 수정
+        return PositionOut(**response.data[0])
 
     async def update(self, id: int, position: PositionPatch) -> Optional[PositionOut]:
         try:

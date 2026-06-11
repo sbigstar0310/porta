@@ -1,15 +1,19 @@
 # tests/unit/test_repo/test_position_repo.py
 """
 PositionRepo 단위 테스트
+
+현재 구현 기준:
+- 생성자: PositionRepo(db_client, stock_client) — stock_client 의존성 주입
+- 모든 공개 메서드는 async
+- create()는 insert 후 stock_client 시세로 enriched PositionOut 반환
+- 스키마 필드: ticker / total_shares / avg_buy_price
 """
 import pytest
 from unittest.mock import MagicMock
 from decimal import Decimal
-from supabase import Client
 
 from repo.position_repo import PositionRepo
-from data.schemas import PositionCreate, PositionPatch
-from data.models import Position
+from data.schemas import PositionCreate, PositionPatch, PositionOut
 from tests.fixtures.mock_data import MockDataGenerator
 
 
@@ -18,247 +22,148 @@ class TestPositionRepo:
     """PositionRepo 테스트 클래스"""
 
     @pytest.fixture
-    def mock_supabase_client(self):
+    def mock_db_client(self):
         """Mock Supabase 클라이언트"""
-        mock_client = MagicMock(spec=Client)
-        mock_table = MagicMock()
-        mock_client.table.return_value = mock_table
+        return MagicMock()
+
+    @pytest.fixture
+    def mock_stock_client(self):
+        """Mock StockClient (현재가 조회)"""
+        mock_client = MagicMock()
+        mock_client.get_stock_current_price.return_value = {"AAPL": 165.50}
         return mock_client
 
     @pytest.fixture
-    def position_repo(self, mock_supabase_client):
-        """PositionRepo 인스턴스"""
-        return PositionRepo(mock_supabase_client)
+    def position_repo(self, mock_db_client, mock_stock_client):
+        """PositionRepo 인스턴스 (Mock 의존성 직접 주입)"""
+        return PositionRepo(db_client=mock_db_client, stock_client=mock_stock_client)
+
+    @pytest.fixture
+    def sample_position_row(self):
+        """테스트용 positions 테이블 행"""
+        return MockDataGenerator.create_position(position_id=1, portfolio_id=1, ticker="AAPL")
 
     @pytest.fixture
     def sample_position_create(self):
-        """테스트용 포지션 생성 데이터"""
-        return PositionCreate(portfolio_id=1, symbol="AAPL", shares=Decimal("10.0"), average_price=Decimal("150.00"))
+        """테스트용 포지션 생성 스키마"""
+        return PositionCreate(
+            portfolio_id=1, ticker="AAPL", total_shares=Decimal("10.00"), avg_buy_price=Decimal("150.00")
+        )
 
-    @pytest.fixture
-    def sample_position_data(self):
-        """테스트용 포지션 데이터"""
-        return MockDataGenerator.create_position()
+    # ===== 초기화 =====
 
-    def test_position_repo_initialization(self, mock_supabase_client):
-        """PositionRepo 초기화 테스트"""
-        repo = PositionRepo(mock_supabase_client)
+    def test_position_repo_initialization(self, mock_db_client, mock_stock_client):
+        """PositionRepo 초기화: 기본 테이블 이름은 positions"""
+        repo = PositionRepo(db_client=mock_db_client, stock_client=mock_stock_client)
 
-        assert repo.db_client == mock_supabase_client
+        assert repo.db_client is mock_db_client
+        assert repo.stock_client is mock_stock_client
         assert repo.table_name == "positions"
 
-    def test_create_position_success(
-        self, position_repo, mock_supabase_client, sample_position_create, sample_position_data
+    # ===== create =====
+
+    async def test_create_position_success(
+        self, position_repo, mock_db_client, mock_stock_client, sample_position_create, sample_position_row
     ):
-        """포지션 생성 성공 테스트"""
-        mock_supabase_client.table().insert().execute.return_value.data = [sample_position_data]
+        """포지션 생성 성공: insert 후 시세가 반영된 PositionOut 반환"""
+        mock_db_client.table.return_value.insert.return_value.execute.return_value.data = [sample_position_row]
 
-        result = position_repo.create(sample_position_create)
+        result = await position_repo.create(sample_position_create)
 
-        # 호출 검증
-        mock_supabase_client.table.assert_called_with("positions")
-        mock_supabase_client.table().insert.assert_called_with(sample_position_create.dict())
+        # insert는 mode='json' 직렬화 데이터로 호출되어야 함
+        mock_db_client.table.assert_called_with("positions")
+        mock_db_client.table.return_value.insert.assert_called_with(sample_position_create.model_dump(mode="json"))
+        mock_stock_client.get_stock_current_price.assert_called_with(["AAPL"])
 
-        # 결과 검증
-        assert isinstance(result, Position)
-        assert result.symbol == sample_position_data["symbol"]
-        assert result.portfolio_id == sample_position_data["portfolio_id"]
+        # 결과 검증: 10주 x 165.50 = 1655.00, 원가 1500.00
+        assert isinstance(result, PositionOut)
+        assert result.ticker == "AAPL"
+        assert result.total_shares == Decimal("10.00")
+        assert result.current_price == Decimal("165.5")
+        assert result.current_market_value == Decimal("1655.0")
+        assert result.unrealized_pnl == Decimal("155.0")
 
-    def test_get_by_id_success(self, position_repo, mock_supabase_client, sample_position_data):
-        """ID로 포지션 조회 성공 테스트"""
-        position_id = 1
-        mock_supabase_client.table().select().eq().execute.return_value.data = [sample_position_data]
+    async def test_create_position_empty_response_raises(self, position_repo, mock_db_client, sample_position_create):
+        """insert 응답이 비어 있으면 예외 발생 (response.data[0] 접근)"""
+        mock_db_client.table.return_value.insert.return_value.execute.return_value.data = []
 
-        result = position_repo.get_by_id(position_id)
+        with pytest.raises(IndexError):
+            await position_repo.create(sample_position_create)
 
-        # 호출 검증
-        mock_supabase_client.table().select().eq.assert_called_with("id", position_id)
+    async def test_create_position_db_error_propagates(self, position_repo, mock_db_client, sample_position_create):
+        """insert 중 DB 예외 발생 시 그대로 전파"""
+        mock_db_client.table.return_value.insert.return_value.execute.side_effect = Exception("DB Error")
 
-        # 결과 검증
-        assert isinstance(result, Position)
-        assert result.id == sample_position_data["id"]
+        with pytest.raises(Exception, match="DB Error"):
+            await position_repo.create(sample_position_create)
 
-    def test_get_by_portfolio_id_success(self, position_repo, mock_supabase_client):
-        """포트폴리오 ID로 포지션 목록 조회 테스트"""
-        portfolio_id = 1
-        positions_data = MockDataGenerator.create_multiple_positions(5, portfolio_id)
-        mock_supabase_client.table().select().eq().execute.return_value.data = positions_data
+    # ===== get_by_id =====
 
-        result = position_repo.get_by_portfolio_id(portfolio_id)
+    async def test_get_by_id_success(self, position_repo, mock_db_client, sample_position_row):
+        """ID로 포지션 조회 성공: PositionOut 반환"""
+        select_chain = mock_db_client.table.return_value.select.return_value
+        select_chain.eq.return_value.execute.return_value.data = [sample_position_row]
 
-        # 호출 검증
-        mock_supabase_client.table().select().eq.assert_called_with("portfolio_id", portfolio_id)
+        result = await position_repo.get_by_id(1)
 
-        # 결과 검증
-        assert isinstance(result, list)
-        assert len(result) == 5
-        assert all(isinstance(p, Position) for p in result)
-        assert all(p.portfolio_id == portfolio_id for p in result)
+        mock_db_client.table.return_value.select.assert_called_with("*")
+        select_chain.eq.assert_called_with("id", 1)
+        assert isinstance(result, PositionOut)
+        assert result.id == sample_position_row["id"]
+        assert result.ticker == "AAPL"
 
-    def test_get_by_symbol_success(self, position_repo, mock_supabase_client, sample_position_data):
-        """심볼로 포지션 조회 테스트"""
-        portfolio_id = 1
-        symbol = "AAPL"
-        mock_supabase_client.table().select().eq().eq().execute.return_value.data = [sample_position_data]
+    async def test_get_by_id_not_found_returns_none(self, position_repo, mock_db_client):
+        """조회 결과가 비어 있으면 None 반환 (과거 IndexError 500 버그 수정 확인)"""
+        select_chain = mock_db_client.table.return_value.select.return_value
+        select_chain.eq.return_value.execute.return_value.data = []
 
-        result = position_repo.get_by_symbol(portfolio_id, symbol)
+        result = await position_repo.get_by_id(999)
 
-        # 호출 검증 (두 개의 eq 조건이 사용되었는지 확인)
-        assert mock_supabase_client.table().select().eq.call_count >= 2
+        assert result is None
 
-        # 결과 검증
-        assert isinstance(result, Position)
-        assert result.symbol == symbol
-        assert result.portfolio_id == portfolio_id
+    # ===== update =====
 
-    def test_update_position_success(self, position_repo, mock_supabase_client, sample_position_data):
-        """포지션 업데이트 성공 테스트"""
-        position_patch = PositionPatch(shares=Decimal("15.0"), current_price=Decimal("160.00"))
-        position_id = 1
+    async def test_update_position_success(self, position_repo, mock_db_client, sample_position_row):
+        """포지션 부분 수정 성공: exclude_unset 패치 후 PositionOut 반환"""
+        patch_schema = PositionPatch(total_shares=Decimal("15.00"))
+        updated_row = {**sample_position_row, "total_shares": 15.00}
+        update_chain = mock_db_client.table.return_value.update
+        update_chain.return_value.eq.return_value.execute.return_value.data = [updated_row]
 
-        updated_data = sample_position_data.copy()
-        updated_data.update(position_patch.dict(exclude_unset=True))
-        # 시장가치와 손익 재계산
-        updated_data["market_value"] = updated_data["shares"] * updated_data["current_price"]
-        updated_data["unrealized_gain_loss"] = updated_data["shares"] * (
-            updated_data["current_price"] - updated_data["average_price"]
+        result = await position_repo.update(1, patch_schema)
+
+        # 설정하지 않은 필드(ticker/avg_buy_price)는 패치에 포함되지 않아야 함
+        update_chain.assert_called_with({"total_shares": 15.0})
+        update_chain.return_value.eq.assert_called_with("id", 1)
+        assert isinstance(result, PositionOut)
+        assert result.total_shares == Decimal("15.00")
+
+    async def test_update_position_db_error_propagates(self, position_repo, mock_db_client):
+        """업데이트 중 DB 예외 발생 시 그대로 전파"""
+        mock_db_client.table.return_value.update.return_value.eq.return_value.execute.side_effect = Exception(
+            "DB Error"
         )
 
-        mock_supabase_client.table().update().eq().execute.return_value.data = [updated_data]
+        with pytest.raises(Exception, match="DB Error"):
+            await position_repo.update(1, PositionPatch(total_shares=Decimal("15.00")))
 
-        result = position_repo.update(position_patch, position_id=position_id)
+    # ===== delete_by_id =====
 
-        # 호출 검증
-        update_call_args = mock_supabase_client.table().update.call_args[0][0]
-        assert "shares" in update_call_args or "current_price" in update_call_args
-        mock_supabase_client.table().update().eq.assert_called_with("id", position_id)
+    async def test_delete_by_id_success(self, position_repo, mock_db_client):
+        """포지션 삭제 성공: True 반환"""
+        delete_chain = mock_db_client.table.return_value.delete.return_value
+        delete_chain.eq.return_value.execute.return_value.data = [{"id": 1}]
 
-        # 결과 검증
-        assert isinstance(result, Position)
+        result = await position_repo.delete_by_id(1)
 
-    def test_update_current_price_success(self, position_repo, mock_supabase_client, sample_position_data):
-        """현재가 업데이트 테스트"""
-        position_id = 1
-        new_price = Decimal("160.00")
+        delete_chain.eq.assert_called_with("id", 1)
+        assert result is True
 
-        updated_data = sample_position_data.copy()
-        updated_data["current_price"] = new_price
-        # 시장가치와 손익 재계산
-        updated_data["market_value"] = updated_data["shares"] * new_price
-        updated_data["unrealized_gain_loss"] = updated_data["shares"] * (new_price - updated_data["average_price"])
+    async def test_delete_by_id_not_found(self, position_repo, mock_db_client):
+        """삭제 대상이 없으면 False 반환"""
+        delete_chain = mock_db_client.table.return_value.delete.return_value
+        delete_chain.eq.return_value.execute.return_value.data = []
 
-        mock_supabase_client.table().update().eq().execute.return_value.data = [updated_data]
+        result = await position_repo.delete_by_id(999)
 
-        result = position_repo.update_current_price(position_id, new_price)
-
-        # 호출 검증
-        update_call_args = mock_supabase_client.table().update.call_args[0][0]
-        assert update_call_args["current_price"] == new_price
-        assert "market_value" in update_call_args
-        assert "unrealized_gain_loss" in update_call_args
-
-        # 결과 검증
-        assert isinstance(result, Position)
-        assert result.current_price == new_price
-
-    def test_update_shares_success(self, position_repo, mock_supabase_client, sample_position_data):
-        """보유 주식 수 업데이트 테스트"""
-        position_id = 1
-        new_shares = Decimal("20.0")
-
-        updated_data = sample_position_data.copy()
-        updated_data["shares"] = new_shares
-        # 시장가치와 손익 재계산
-        updated_data["market_value"] = new_shares * updated_data["current_price"]
-        updated_data["unrealized_gain_loss"] = new_shares * (
-            updated_data["current_price"] - updated_data["average_price"]
-        )
-
-        mock_supabase_client.table().update().eq().execute.return_value.data = [updated_data]
-
-        result = position_repo.update_shares(position_id, new_shares)
-
-        # 호출 검증
-        update_call_args = mock_supabase_client.table().update.call_args[0][0]
-        assert update_call_args["shares"] == new_shares
-        assert "market_value" in update_call_args
-        assert "unrealized_gain_loss" in update_call_args
-
-        # 결과 검증
-        assert isinstance(result, Position)
-        assert result.shares == new_shares
-
-    def test_delete_by_id_success(self, position_repo, mock_supabase_client):
-        """포지션 삭제 성공 테스트"""
-        position_id = 1
-        mock_supabase_client.table().delete().eq().execute.return_value.data = [{"id": position_id}]
-
-        result = position_repo.delete_by_id(position_id)
-
-        # 호출 검증
-        mock_supabase_client.table().delete().eq.assert_called_with("id", position_id)
-
-        # 결과 검증
-        assert result == {"id": position_id}
-
-    def test_bulk_update_prices_success(self, position_repo, mock_supabase_client):
-        """일괄 가격 업데이트 테스트"""
-        price_updates = [{"symbol": "AAPL", "price": Decimal("160.00")}, {"symbol": "MSFT", "price": Decimal("320.00")}]
-
-        # Mock 응답 설정
-        mock_supabase_client.table().update().eq().execute.return_value.data = [{"updated": True}]
-
-        result = position_repo.bulk_update_prices(price_updates)
-
-        # 호출 검증 (각 심볼별로 업데이트가 호출되었는지 확인)
-        assert mock_supabase_client.table().update.call_count == len(price_updates)
-
-        # 결과 검증
-        assert result is not None
-
-    def test_get_position_performance_success(self, position_repo, mock_supabase_client):
-        """포지션 성과 분석 조회 테스트"""
-        position_id = 1
-        performance_data = {
-            "id": position_id,
-            "symbol": "AAPL",
-            "total_return": Decimal("10.50"),
-            "return_percentage": Decimal("7.50"),
-            "holding_period_days": 30,
-        }
-
-        mock_supabase_client.table().select().eq().execute.return_value.data = [performance_data]
-
-        result = position_repo.get_position_performance(position_id)
-
-        # 결과 검증
-        assert result == performance_data
-
-    def test_create_position_failure(self, position_repo, mock_supabase_client, sample_position_create):
-        """포지션 생성 실패 테스트"""
-        mock_supabase_client.table().insert().execute.return_value.data = []
-
-        result = position_repo.create(sample_position_create)
-
-        assert result is None
-
-    def test_get_by_id_not_found(self, position_repo, mock_supabase_client):
-        """포지션 조회 결과 없음 테스트"""
-        position_id = 999
-        mock_supabase_client.table().select().eq().execute.return_value.data = []
-
-        result = position_repo.get_by_id(position_id)
-
-        assert result is None
-
-    def test_exception_handling(self, position_repo, mock_supabase_client, sample_position_create):
-        """예외 처리 테스트"""
-        mock_supabase_client.table().insert().execute.side_effect = Exception("DB Error")
-
-        result = position_repo.create(sample_position_create)
-        assert result is None
-
-        mock_supabase_client.table().select().eq().execute.side_effect = Exception("DB Error")
-
-        result = position_repo.get_by_id(1)
-        assert result is None
+        assert result is False

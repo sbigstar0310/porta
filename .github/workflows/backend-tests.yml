@@ -25,15 +25,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      # 현재 green인 테스트 경로만 게이트로 사용한다.
-      # 스테일 테스트 모듈(usecase/repo/clients 일부, integration/e2e)은
-      # 재작성이 끝나는 대로 아래 목록에 추가할 것.
-      - name: Run unit tests (green set)
-        run: >
-          uv run pytest -q
-          tests/unit/test_graph/
-          tests/unit/test_clients/
-          tests/unit/test_data/
+      # unit 전체가 green (2026-06 테스트 부패 수리 완료).
+      # integration/e2e는 dev Supabase 전환 후 별도 잡으로 추가 예정.
+      - name: Run unit tests
+        run: uv run pytest -q tests/unit/
         env:
           TESTING: "1"
           OPENAI_API_KEY: test-openai-key
