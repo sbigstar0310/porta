@@ -70,6 +70,22 @@ class TestPortfolioAPI:
 class TestPositionAPI:
     """POST/GET/PATCH/DELETE /position — 생성→조회→수정→삭제 풀 사이클."""
 
+    def test_get_nonexistent_position_returns_404(self, api_client, auth_headers):
+        """존재하지 않는 포지션 조회: 500이 아니라 404 (소유권 검사·빈 결과 처리 확인)."""
+        response = api_client.get("/position/2147000000", headers=auth_headers)
+
+        assert response.status_code == 404
+
+    def test_create_position_in_others_portfolio_forbidden(self, api_client, auth_headers):
+        """타인 portfolio_id로 포지션 생성 시도: 403."""
+        response = api_client.post(
+            "/position/",
+            headers=auth_headers,
+            json={"portfolio_id": 2147000000, "ticker": "AAPL", "total_shares": "1", "avg_buy_price": "100"},
+        )
+
+        assert response.status_code == 403
+
     def test_position_full_lifecycle(self, api_client, auth_headers, auth_user):
         """AAPL 포지션 생성→조회→수정→삭제, 종료 시 포트폴리오는 다시 빈 상태."""
         portfolio = api_client.get("/portfolio", headers=auth_headers)

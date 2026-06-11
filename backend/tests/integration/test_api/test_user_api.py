@@ -28,36 +28,23 @@ class TestUserAPI:
         assert "timezone" in data
         assert "language" in data
 
-    @pytest.mark.xfail(
-        reason=(
-            "소스 버그: UserRepo.get_by_id(repo/user_repo.py)가 DB 행의 email_verified를 "
-            "User 모델에 매핑하지 않아 항상 기본값 False로 응답함. "
-            "올바른 동작은 DB 값(True) 반환."
-        ),
-        strict=True,
-    )
     def test_get_own_user_email_verified_reflects_db(self, api_client, auth_headers, auth_user):
-        """인증 완료 유저 조회 시 email_verified=True여야 한다 (현재 소스 버그로 False)."""
+        """인증 완료 유저 조회 시 email_verified=True를 반환한다 (get_by_id 매핑 버그 수정 확인)."""
         response = api_client.get(f"/users/{auth_user['user_id']}", headers=auth_headers)
 
         assert response.status_code == 200
         assert response.json()["email_verified"] is True
 
-    def test_get_nonexistent_user_returns_404(self, api_client, auth_headers):
-        """존재하지 않는 user_id 조회: 404."""
+    def test_get_other_user_forbidden(self, api_client, auth_headers):
+        """타인(또는 존재하지 않는) user_id 조회: 403 — 본인 프로필만 조회 가능."""
         response = api_client.get(f"/users/{NONEXISTENT_USER_ID}", headers=auth_headers)
 
-        assert response.status_code == 404
+        assert response.status_code == 403
 
-    def test_protected_endpoint_without_token(self, api_client):
-        """토큰 없이 보호된 엔드포인트 접근: 401/403.
-
-        주의: GET /users/{id} 자체는 인증 의존성이 없어(소스 이슈) 보호 동작은
-        대표적인 보호 엔드포인트(GET /portfolio)로 검증한다.
-        """
-        response = api_client.get("/portfolio")
-
-        assert response.status_code in (401, 403)
+    def test_protected_endpoint_without_token(self, api_client, auth_user):
+        """토큰 없이 보호된 엔드포인트 접근: 401/403 (유저 조회·포트폴리오 모두 보호됨)."""
+        assert api_client.get(f"/users/{auth_user['user_id']}").status_code in (401, 403)
+        assert api_client.get("/portfolio").status_code in (401, 403)
 
     def test_protected_endpoint_with_invalid_token(self, api_client):
         """위조/무효 토큰으로 접근: 401/403."""

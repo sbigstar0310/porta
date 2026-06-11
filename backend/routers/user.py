@@ -10,9 +10,13 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("/{user_id}", response_model=UserOut)
-def get_user(user_id: int, user_usecase: UserUsecase = Depends(get_user_usecase)) -> UserOut:
+def get_user(
+    user_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+    user_usecase: UserUsecase = Depends(get_user_usecase),
+) -> UserOut:
     """
-    사용자 정보 조회
+    사용자 정보 조회 (본인 프로필만 — 타인 조회는 403)
 
     Args:
         user_id: 사용자 ID
@@ -22,8 +26,11 @@ def get_user(user_id: int, user_usecase: UserUsecase = Depends(get_user_usecase)
         UserOut: 사용자 정보
 
     Raises:
-        HTTPException: 사용자를 찾을 수 없는 경우
+        HTTPException: 타인 프로필 조회(403) 또는 사용자를 찾을 수 없는 경우(404)
     """
+    if user_id != current_user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="본인 프로필만 조회할 수 있습니다.")
+
     user = user_usecase.get_user_profile(user_id)
     if not user:
         raise HTTPException(

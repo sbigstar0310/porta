@@ -103,6 +103,7 @@ class UserRepo(BaseRepo):
                     email=data["email"],
                     timezone=data.get("timezone"),
                     language=data.get("language"),
+                    email_verified=data.get("email_verified", False),
                     created_at=data.get("created_at"),
                     updated_at=data.get("updated_at"),
                     last_login=data.get("last_login"),
