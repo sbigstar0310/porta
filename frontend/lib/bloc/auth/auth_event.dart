@@ -40,6 +40,9 @@ class AuthUserFetched extends AuthEvent {}
 
 class AuthDeleteRequested extends AuthEvent {}
 
+/// Refresh token 만료로 세션이 종료됨 (DioClient에서 발행)
+class AuthSessionExpired extends AuthEvent {}
+
 class AuthEmailVerificationSuccess extends AuthEvent {
   final String message;
 

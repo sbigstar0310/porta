@@ -1,3 +1,17 @@
+/// 백엔드가 숫자를 number 또는 string(Decimal 직렬화)으로 보낼 수 있어 둘 다 허용
+double _asDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.parse(value);
+  throw FormatException('숫자로 변환할 수 없는 값: $value');
+}
+
+double? _asDoubleOrNull(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value);
+  return null;
+}
+
 class Portfolio {
   final int id;
   final int userId;
@@ -28,23 +42,15 @@ class Portfolio {
       id: json['id'] as int,
       userId: json['user_id'] as int,
       baseCurrency: json['base_currency'] as String,
-      cash: double.parse(json['cash'] as String),
+      cash: _asDouble(json['cash']),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       positions: (json['positions'] as List? ?? [])
           .map((position) => Position.fromJson(position))
           .toList(),
-      totalStockValue: json['total_stock_value'] != null
-          ? double.parse(json['total_stock_value'] as String)
-          : null,
-      totalValue: json['total_value'] != null
-          ? double.parse(json['total_value'] as String)
-          : null,
-      totalUnrealizedPnl: json['total_unrealized_pnl'] != null
-          ? double.parse(json['total_unrealized_pnl'] as String)
-          : null,
-      totalUnrealizedPnlPct: json['total_unrealized_pnl_pct'] != null
-          ? double.parse(json['total_unrealized_pnl_pct'] as String)
-          : null,
+      totalStockValue: _asDoubleOrNull(json['total_stock_value']),
+      totalValue: _asDoubleOrNull(json['total_value']),
+      totalUnrealizedPnl: _asDoubleOrNull(json['total_unrealized_pnl']),
+      totalUnrealizedPnlPct: _asDoubleOrNull(json['total_unrealized_pnl_pct']),
     );
   }
 
@@ -130,10 +136,10 @@ class PortfolioItem {
     return PortfolioItem(
       symbol: json['symbol'] as String,
       name: json['name'] as String,
-      quantity: (json['quantity'] as num).toDouble(),
-      averagePrice: double.parse(json['average_price'] as String),
-      currentPrice: double.parse(json['current_price'] as String),
-      totalValue: double.parse(json['total_value'] as String),
+      quantity: _asDouble(json['quantity']),
+      averagePrice: _asDouble(json['average_price']),
+      currentPrice: _asDouble(json['current_price']),
+      totalValue: _asDouble(json['total_value']),
     );
   }
 
@@ -183,21 +189,13 @@ class Position {
       id: json['id'] as int,
       portfolioId: json['portfolio_id'] as int,
       ticker: json['ticker'] as String,
-      totalShares: (json['total_shares'] as num).toDouble(),
-      avgBuyPrice: (json['avg_buy_price'] as num).toDouble(),
+      totalShares: _asDouble(json['total_shares']),
+      avgBuyPrice: _asDouble(json['avg_buy_price']),
       updatedAt: DateTime.parse(json['updated_at'] as String),
-      currentPrice: json['current_price'] != null
-          ? (json['current_price'] as num).toDouble()
-          : null,
-      currentMarketValue: json['current_market_value'] != null
-          ? (json['current_market_value'] as num).toDouble()
-          : null,
-      unrealizedPnl: json['unrealized_pnl'] != null
-          ? (json['unrealized_pnl'] as num).toDouble()
-          : null,
-      unrealizedPnlPct: json['unrealized_pnl_pct'] != null
-          ? (json['unrealized_pnl_pct'] as num).toDouble()
-          : null,
+      currentPrice: _asDoubleOrNull(json['current_price']),
+      currentMarketValue: _asDoubleOrNull(json['current_market_value']),
+      unrealizedPnl: _asDoubleOrNull(json['unrealized_pnl']),
+      unrealizedPnlPct: _asDoubleOrNull(json['unrealized_pnl_pct']),
     );
   }
 

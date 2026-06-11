@@ -121,87 +121,79 @@ class _StockSearchFieldState extends State<StockSearchField> {
   void _showOverlay() {
     if (!mounted || _overlayEntry != null || _searchResults.isEmpty) return;
 
+    // 입력창의 실제 폭을 측정해 드롭다운 폭을 맞춘다(화면 끝까지 확장 방지).
+    final renderBox = context.findRenderObject() as RenderBox?;
+    final fieldWidth =
+        renderBox?.size.width ?? MediaQuery.of(context).size.width;
+
     _overlayEntry = OverlayEntry(
-      builder: (context) => Stack(
-        children: [
-          // 투명한 배경 - 탭하면 오버레이 닫기
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () {
-                if (mounted) {
-                  _removeOverlay();
-                }
-              },
-              child: Container(color: Colors.transparent),
-            ),
-          ),
-          // 실제 드롭다운 리스트
-          Positioned(
-            width: MediaQuery.of(context).size.width - 48, // 좌우 패딩 고려
-            child: CompositedTransformFollower(
-              link: _layerLink,
-              showWhenUnlinked: false,
-              offset: const Offset(0, 60), // TextFormField 아래에 위치
-              child: Material(
-                elevation: 4,
+      // 전체화면 투명 배리어를 두지 않는다 — 모바일에서 스크롤 제스처를 가로채기
+      // 때문. 포커스를 잃으면 _onFocusChanged가 오버레이를 닫는다.
+      builder: (context) => Positioned(
+        width: fieldWidth,
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          showWhenUnlinked: false,
+          // 입력창 높이에 의존하지 않도록 앵커로 바로 아래에 붙인다.
+          targetAnchor: Alignment.bottomLeft,
+          followerAnchor: Alignment.topLeft,
+          offset: const Offset(0, 4),
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 240),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  constraints: const BoxConstraints(maxHeight: 200),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Theme.of(context).dividerColor,
-                      width: 1,
-                    ),
-                  ),
-                  child: ListView.builder(
-                    padding: EdgeInsets.zero,
-                    shrinkWrap: true,
-                    itemCount: _searchResults.length,
-                    itemBuilder: (context, index) {
-                      final result = _searchResults[index];
-                      return ListTile(
-                        dense: true,
-                        title: Row(
-                          children: [
-                            Text(
-                              result.ticker,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                result.companyName,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Theme.of(
-                                    context,
-                                  ).textTheme.bodySmall?.color,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () {
-                          if (mounted) {
-                            _onResultTap(result);
-                          }
-                        },
-                      );
-                    },
-                  ),
+                border: Border.all(
+                  color: Theme.of(context).dividerColor,
+                  width: 1,
                 ),
+              ),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: _searchResults.length,
+                itemBuilder: (context, index) {
+                  final result = _searchResults[index];
+                  return ListTile(
+                    dense: true,
+                    title: Row(
+                      children: [
+                        Text(
+                          result.ticker,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            result.companyName,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(context).textTheme.bodySmall?.color,
+                              fontWeight: FontWeight.w400,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      if (mounted) {
+                        _onResultTap(result);
+                      }
+                    },
+                  );
+                },
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
 

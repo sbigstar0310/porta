@@ -18,6 +18,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthUserFetched>(_onUserFetched);
     on<AuthDeleteRequested>(_onDeleteRequested);
     on<AuthEmailVerificationSuccess>(_onEmailVerificationSuccess);
+    on<AuthSessionExpired>(_onSessionExpired);
   }
 
   Future<void> _onInitialized(
@@ -146,8 +147,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthLoading());
 
     try {
-      // 백엔드 signout API 호출
-      await _apiService.signout();
+      // 유효한 토큰이 있을 때만 백엔드 signout 호출 (비로그인 상태에서의 불필요한 POST 방지)
+      if (await _hasValidToken()) {
+        await _apiService.signout();
+      }
 
       // 로컬 저장소 정리
       await StorageService.deleteAuthToken();
@@ -163,6 +166,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
       emit(AuthUnauthenticated());
     }
+  }
+
+  /// 백엔드 호출에 쓸 유효한 액세스 토큰이 저장돼 있는지 확인
+  Future<bool> _hasValidToken() async {
+    final token = await StorageService.getAuthToken();
+    return token != null && token.isNotEmpty && token != 'dummy_token';
   }
 
   Future<void> _onUserFetched(
@@ -237,6 +246,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
+  Future<void> _onSessionExpired(
+    AuthSessionExpired event,
+    Emitter<AuthState> emit,
+  ) async {
+    // 토큰/사용자 데이터는 DioClient에서 이미 삭제됨.
+    // 로그인 상태였을 때만 전환 (이메일 인증 대기 등 다른 상태는 건드리지 않음)
+    if (state is! AuthAuthenticated) return;
+
+    debugPrint('세션 만료 - 로그아웃 상태로 전환');
+    emit(const AuthError('세션이 만료되었습니다. 다시 로그인해주세요.'));
+  }
+
   Future<void> _onEmailVerificationSuccess(
     AuthEmailVerificationSuccess event,
     Emitter<AuthState> emit,
@@ -248,8 +269,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     await Future.delayed(const Duration(seconds: 2));
 
     try {
-      // 백엔드 signout API 호출
-      await _apiService.signout();
+      // 유효한 토큰이 있을 때만 백엔드 signout 호출
+      if (await _hasValidToken()) {
+        await _apiService.signout();
+      }
     } catch (e) {
       debugPrint('로그아웃 API 호출 실패: $e');
       // API 호출 실패해도 로컬 정리는 진행

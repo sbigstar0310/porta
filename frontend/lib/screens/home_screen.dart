@@ -8,35 +8,15 @@ import '../constants/colors.dart';
 import '../widgets/email_verification_banner.dart';
 
 class HomeScreen extends StatefulWidget {
-  final Widget child;
+  final StatefulNavigationShell navigationShell;
 
-  const HomeScreen({super.key, required this.child});
+  const HomeScreen({super.key, required this.navigationShell});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String get _currentRoute {
-    final location = GoRouterState.of(context).uri.path;
-    if (location.startsWith('/agent')) return '/agent';
-    if (location.startsWith('/position')) return '/position';
-    if (location.startsWith('/health')) return '/health';
-    return '/portfolio';
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeApp();
-    });
-  }
-
-  void _initializeApp() {
-    // AuthBloc은 앱 시작 시 자동으로 초기화됨
-    // 필요시 추가적인 초기화 로직을 여기에 추가
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -197,28 +177,28 @@ class _HomeScreenState extends State<HomeScreen> {
                               context,
                               '포트폴리오',
                               Icons.account_balance_wallet_outlined,
-                              '/portfolio',
+                              0,
                               isDark,
                             ),
                             _buildModernNavTab(
                               context,
                               'AI 에이전트',
                               Icons.psychology_outlined,
-                              '/agent',
+                              1,
                               isDark,
                             ),
                             _buildModernNavTab(
                               context,
                               '포지션',
                               Icons.trending_up_outlined,
-                              '/position',
+                              2,
                               isDark,
                             ),
                             _buildModernNavTab(
                               context,
                               '시스템',
                               Icons.monitor_heart_outlined,
-                              '/health',
+                              3,
                               isDark,
                             ),
                           ],
@@ -273,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       }
 
-                      return widget.child;
+                      return widget.navigationShell;
                     },
                   ),
                 ),
@@ -417,14 +397,22 @@ class _HomeScreenState extends State<HomeScreen> {
     BuildContext context,
     String title,
     IconData icon,
-    String route,
+    int branchIndex,
     bool isDark,
   ) {
-    final isSelected = _currentRoute == route;
+    final isSelected = widget.navigationShell.currentIndex == branchIndex;
 
-    return GestureDetector(
-      onTap: () => context.go(route),
-      child: AnimatedContainer(
+    return Semantics(
+      label: title,
+      button: true,
+      selected: isSelected,
+      child: GestureDetector(
+        // 현재 탭을 다시 누르면 해당 탭의 루트 화면으로 복귀
+        onTap: () => widget.navigationShell.goBranch(
+          branchIndex,
+          initialLocation: branchIndex == widget.navigationShell.currentIndex,
+        ),
+        child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.only(right: 4),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -473,6 +461,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

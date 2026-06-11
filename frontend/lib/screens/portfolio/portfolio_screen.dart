@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/auth/auth_event.dart';
 import '../../bloc/portfolio/portfolio_bloc.dart';
 import '../../bloc/portfolio/portfolio_event.dart';
 import '../../bloc/portfolio/portfolio_state.dart';
@@ -34,6 +36,9 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
         }
 
         if (state is PortfolioError) {
+          if (state.requiresEmailVerification) {
+            return _EmailVerificationRequiredWidget(message: state.message);
+          }
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1195,6 +1200,66 @@ class _EmptyPortfolioWidget extends StatelessWidget {
             label: const Text('포트폴리오 만들기'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 이메일 미인증(403)으로 포트폴리오를 불러오지 못했을 때 표시하는 안내.
+class _EmailVerificationRequiredWidget extends StatelessWidget {
+  final String message;
+
+  const _EmailVerificationRequiredWidget({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: AppColors.info.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(36),
+              ),
+              child: const Icon(
+                Icons.mark_email_unread_outlined,
+                size: 36,
+                color: AppColors.info,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '이메일 인증이 필요합니다',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              // 인증 메일 클릭 후 재로그인하도록 로그인 화면으로 보낸다.
+              // (로그인 화면에서 인증 메일 재발송도 가능)
+              onPressed: () =>
+                  context.read<AuthBloc>().add(AuthLogoutRequested()),
+              icon: const Icon(Icons.login),
+              label: const Text('로그인 화면으로'),
+            ),
+          ],
+        ),
       ),
     );
   }

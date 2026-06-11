@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +15,7 @@ import 'bloc/settings/settings_state.dart';
 import 'constants/colors.dart';
 import 'services/storage_service.dart';
 import 'services/dio_client.dart';
+import 'services/auth_session_event.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/home_screen.dart';
@@ -33,37 +35,50 @@ class PortaApp extends StatefulWidget {
 }
 
 class _PortaAppState extends State<PortaApp> {
-  late AuthBloc _authBloc;
+  late final AuthBloc _authBloc;
+  late final GoRouter _router;
+  StreamSubscription<AuthSessionEvent>? _authEventSubscription;
 
   @override
   void initState() {
     super.initState();
-    _initializeServices();
+    _authBloc = AuthBloc();
+    _subscribeToAuthSessionEvents(_authBloc);
+    // 라우터는 한 번만 생성하고, 인증 상태 변경은 refreshListenable로 redirect만 재평가
+    _router = _createRouter();
+    _initializeServices().then((_) {
+      _authBloc.add(AuthInitialized());
+    });
+  }
+
+  @override
+  void dispose() {
+    _authEventSubscription?.cancel();
+    _authBloc.close();
+    super.dispose();
   }
 
   Future<void> _initializeServices() async {
     await StorageService.init();
   }
 
-  void _setupEmailVerificationCallback(AuthBloc authBloc) {
-    _authBloc = authBloc;
-    // DioClient의 이메일 인증 성공 콜백 설정
-    DioClient.onEmailVerificationSuccess = (message) {
-      _authBloc.add(AuthEmailVerificationSuccess(message: message));
-    };
+  /// DioClient의 인증 세션 이벤트를 AuthBloc 이벤트로 변환
+  void _subscribeToAuthSessionEvents(AuthBloc authBloc) {
+    _authEventSubscription?.cancel();
+    _authEventSubscription = DioClient().authEvents.listen((event) {
+      if (event is EmailVerificationCompleted) {
+        authBloc.add(AuthEmailVerificationSuccess(message: event.message));
+      } else if (event is SessionExpired) {
+        authBloc.add(AuthSessionExpired());
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(
-          create: (context) {
-            final authBloc = AuthBloc()..add(AuthInitialized());
-            _setupEmailVerificationCallback(authBloc);
-            return authBloc;
-          },
-        ),
+        BlocProvider<AuthBloc>.value(value: _authBloc),
         BlocProvider(create: (context) => PortfolioBloc()),
         BlocProvider(create: (context) => AgentBloc()),
         BlocProvider(create: (context) => PositionBloc()),
@@ -89,19 +104,12 @@ class _PortaAppState extends State<PortaApp> {
               ? settingsState.settings.darkModeEnabled
               : false;
 
-          return BlocBuilder<AuthBloc, AuthState>(
-            builder: (context, authState) {
-              // 인증 상태가 변경될 때마다 라우터 재생성 (로그인/로그아웃 처리를 위해)
-              final router = _createRouter(authState);
-
-              return MaterialApp.router(
-                title: 'Porta',
-                theme: _buildLightTheme(),
-                darkTheme: _buildDarkTheme(),
-                themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
-                routerConfig: router,
-              );
-            },
+          return MaterialApp.router(
+            title: 'Porta',
+            theme: _buildLightTheme(),
+            darkTheme: _buildDarkTheme(),
+            themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            routerConfig: _router,
           );
         },
       ),
@@ -331,10 +339,15 @@ class _PortaAppState extends State<PortaApp> {
     );
   }
 
-  GoRouter _createRouter(AuthState authState) {
+  GoRouter _createRouter() {
     return GoRouter(
       initialLocation: '/login',
+      // 매칭 불가능한 URL(외부 리다이렉트 잔여물 등)은 크래시 대신 로그인으로
+      onException: (context, state, router) => router.go('/login'),
+      // 인증 상태가 바뀔 때 redirect만 재평가 (라우터 재생성 없음 → 탭/네비 상태 보존)
+      refreshListenable: GoRouterRefreshStream(_authBloc.stream),
       redirect: (context, state) {
+        final authState = _authBloc.state;
         final isAuthenticated =
             authState is AuthAuthenticated || authState is AuthEmailNotVerified;
         final isAuthRoute =
@@ -349,7 +362,7 @@ class _PortaAppState extends State<PortaApp> {
 
         // If authenticated and on auth route, redirect to home
         if (isAuthenticated && isAuthRoute) {
-          return '/';
+          return '/portfolio';
         }
 
         return null; // No redirect needed
@@ -365,96 +378,113 @@ class _PortaAppState extends State<PortaApp> {
           pageBuilder: (context, state) =>
               _buildPageWithTransition(context, state, const RegisterScreen()),
         ),
-        ShellRoute(
-          builder: (context, state, child) {
-            return HomeScreen(child: child);
+        GoRoute(path: '/', redirect: (context, state) => '/portfolio'),
+        // IndexedStack 기반 쉘: 탭 전환 시 각 탭의 위젯 상태(스크롤, 데이터)가 보존됨
+        StatefulShellRoute.indexedStack(
+          builder: (context, state, navigationShell) {
+            return HomeScreen(navigationShell: navigationShell);
           },
-          routes: [
-            GoRoute(
-              path: '/',
-              pageBuilder: (context, state) => _buildPageWithTransition(
-                context,
-                state,
-                const PortfolioScreen(),
-                isShell: true,
-              ),
+          branches: [
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/portfolio',
+                  pageBuilder: (context, state) => _buildPageWithTransition(
+                    context,
+                    state,
+                    const PortfolioScreen(),
+                    isShell: true,
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'edit',
+                      pageBuilder: (context, state) => _buildPageWithTransition(
+                        context,
+                        state,
+                        const PortfolioEditScreen(),
+                        isShell: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            GoRoute(
-              path: '/portfolio',
-              pageBuilder: (context, state) => _buildPageWithTransition(
-                context,
-                state,
-                const PortfolioScreen(),
-                isShell: true,
-              ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/agent',
+                  pageBuilder: (context, state) => _buildPageWithTransition(
+                    context,
+                    state,
+                    const AgentScreen(),
+                    isShell: true,
+                  ),
+                ),
+              ],
             ),
-            GoRoute(
-              path: '/portfolio/edit',
-              pageBuilder: (context, state) => _buildPageWithTransition(
-                context,
-                state,
-                const PortfolioEditScreen(),
-                isShell: true,
-              ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/position',
+                  pageBuilder: (context, state) => _buildPageWithTransition(
+                    context,
+                    state,
+                    const PositionListScreen(),
+                    isShell: true,
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'add',
+                      pageBuilder: (context, state) => _buildPageWithTransition(
+                        context,
+                        state,
+                        const PositionManageScreen(),
+                        isShell: true,
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'edit/:id',
+                      pageBuilder: (context, state) {
+                        final positionId = int.tryParse(
+                          state.pathParameters['id'] ?? '',
+                        );
+                        return _buildPageWithTransition(
+                          context,
+                          state,
+                          PositionManageScreen(positionId: positionId),
+                          isShell: true,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
             ),
-            GoRoute(
-              path: '/agent',
-              pageBuilder: (context, state) => _buildPageWithTransition(
-                context,
-                state,
-                const AgentScreen(),
-                isShell: true,
-              ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/health',
+                  pageBuilder: (context, state) => _buildPageWithTransition(
+                    context,
+                    state,
+                    const HealthScreen(),
+                    isShell: true,
+                  ),
+                ),
+              ],
             ),
-            GoRoute(
-              path: '/position',
-              pageBuilder: (context, state) => _buildPageWithTransition(
-                context,
-                state,
-                const PositionListScreen(),
-                isShell: true,
-              ),
-            ),
-            GoRoute(
-              path: '/position/add',
-              pageBuilder: (context, state) => _buildPageWithTransition(
-                context,
-                state,
-                const PositionManageScreen(),
-                isShell: true,
-              ),
-            ),
-            GoRoute(
-              path: '/position/edit/:id',
-              pageBuilder: (context, state) {
-                final positionId = int.tryParse(
-                  state.pathParameters['id'] ?? '',
-                );
-                return _buildPageWithTransition(
-                  context,
-                  state,
-                  PositionManageScreen(positionId: positionId),
-                  isShell: true,
-                );
-              },
-            ),
-            GoRoute(
-              path: '/health',
-              pageBuilder: (context, state) => _buildPageWithTransition(
-                context,
-                state,
-                const HealthScreen(),
-                isShell: true,
-              ),
-            ),
-            GoRoute(
-              path: '/settings',
-              pageBuilder: (context, state) => _buildPageWithTransition(
-                context,
-                state,
-                const SettingsScreen(),
-                isShell: true,
-              ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/settings',
+                  pageBuilder: (context, state) => _buildPageWithTransition(
+                    context,
+                    state,
+                    const SettingsScreen(),
+                    isShell: true,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -492,6 +522,21 @@ class _PortaAppState extends State<PortaApp> {
         );
       },
     );
+  }
+}
+
+/// BLoC 스트림 이벤트를 GoRouter의 refreshListenable로 변환
+class GoRouterRefreshStream extends ChangeNotifier {
+  late final StreamSubscription<dynamic> _subscription;
+
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    _subscription = stream.listen((_) => notifyListeners());
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
   }
 }
 

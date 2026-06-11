@@ -53,8 +53,12 @@ class PortfolioLoadedState extends PortfolioState {
 class PortfolioError extends PortfolioState {
   final String message;
 
-  const PortfolioError(this.message);
+  /// 이메일 미인증(403 EMAIL_NOT_VERIFIED)으로 인한 실패면 true.
+  /// 화면에서 일반 에러 대신 이메일 인증 안내를 표시한다.
+  final bool requiresEmailVerification;
+
+  const PortfolioError(this.message, {this.requiresEmailVerification = false});
 
   @override
-  List<Object> get props => [message];
+  List<Object> get props => [message, requiresEmailVerification];
 }

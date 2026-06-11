@@ -61,6 +61,12 @@ class _AgentScreenState extends State<AgentScreen>
                 _buildControlButtons(state),
                 const SizedBox(height: 24),
 
+                // 초기/대기 상태 온보딩 안내
+                if (state is AgentInitial || state is AgentIdle) ...[
+                  _buildIdleInfoSection(),
+                  const SizedBox(height: 24),
+                ],
+
                 // Progress section
                 if (state is AgentRunning) ...[
                   _buildProgressSection(state),
@@ -86,10 +92,10 @@ class _AgentScreenState extends State<AgentScreen>
 
   Widget _buildStatusCard(AgentState state) {
     Color statusColor = Colors.grey;
-    IconData statusIcon = Icons.help;
-    String statusText = '알 수 없음';
+    IconData statusIcon = Icons.play_circle_outline;
+    String statusText = '대기 중';
 
-    if (state is AgentIdle) {
+    if (state is AgentIdle || state is AgentInitial) {
       statusColor = Colors.grey;
       statusIcon = Icons.play_circle_outline;
       statusText = '대기 중';
@@ -188,7 +194,7 @@ class _AgentScreenState extends State<AgentScreen>
   Widget _buildControlButtons(AgentState state) {
     final bool isRunning = state is AgentRunning || state is AgentLoading;
     final bool canCancel = state is AgentRunning;
-    final bool isIdle = state is AgentIdle;
+    final bool isIdle = state is AgentIdle || state is AgentInitial;
 
     return Column(
       children: [
@@ -255,6 +261,76 @@ class _AgentScreenState extends State<AgentScreen>
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildIdleInfoSection() {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('AI 에이전트란?', style: theme.textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '보유 포지션을 기반으로 뉴스·모멘텀·펀더멘털·리스크를 종합 분석해 '
+              '매수/매도/보유 추천 리포트를 생성합니다.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            _buildIdleStep(Icons.article_outlined, '시장 뉴스와 데이터 수집'),
+            _buildIdleStep(Icons.show_chart, '모멘텀·펀더멘털 분석'),
+            _buildIdleStep(Icons.shield_outlined, '리스크 점검 및 최종 추천'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.lightbulb_outline,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '먼저 포지션을 추가한 뒤 "에이전트 실행"을 눌러보세요. '
+                      '분석에는 약 10분이 걸립니다.',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIdleStep(IconData icon, String text) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+        ],
+      ),
     );
   }
 

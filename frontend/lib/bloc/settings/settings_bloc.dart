@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../models/settings.dart';
 import '../../models/user.dart';
@@ -27,10 +28,21 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     try {
       final settings = await StorageService.getSettings();
 
+      // 비로그인 상태에서는 보호된 스케줄 API(GET /schedules/me)가 403을 내므로
+      // 호출하지 않고 로컬 설정만 사용한다. (앱 시작 시 SettingsBloc이 루트에서
+      // 즉시 로드되기 때문)
+      final token = await StorageService.getAuthToken();
+      final isLoggedIn =
+          token != null && token.isNotEmpty && token != 'dummy_token';
+      if (!isLoggedIn) {
+        emit(SettingsLoadedState(settings));
+        return;
+      }
+
       // 백엔드에서 스케줄을 가져와서 로컬 설정과 동기화
       try {
         final schedule = await _apiService.getMySchedule();
-        print('백엔드 스케줄: $schedule');
+        debugPrint('백엔드 스케줄: $schedule');
         if (schedule != null) {
           // 백엔드 스케줄이 있으면 로컬 설정에 반영
           final syncedSettings = settings.copyWith(
@@ -46,11 +58,11 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
           return;
         } else {
           // 백엔드에 스케줄이 없는 경우, 사용자가 직접 설정할 때까지 기다림
-          print('백엔드에 스케줄이 없음 - 사용자가 직접 설정할 때까지 대기');
+          debugPrint('백엔드에 스케줄이 없음 - 사용자가 직접 설정할 때까지 대기');
         }
       } catch (e) {
         // 백엔드 조회 실패 시 로컬 설정 사용
-        print('백엔드 스케줄 조회 실패 (로컬 설정 사용): $e');
+        debugPrint('백엔드 스케줄 조회 실패 (로컬 설정 사용): $e');
       }
 
       emit(SettingsLoadedState(settings));
@@ -125,11 +137,11 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
               );
               finalReportTime = createdSchedule.timeString; // 실제 생성된 시간 사용
             } catch (parseError) {
-              print('사용자 데이터 파싱 실패: $parseError');
+              debugPrint('사용자 데이터 파싱 실패: $parseError');
               // 파싱 실패 시 스케줄 생성을 건너뛰고 로컬 저장만 진행
             }
           } else {
-            print('사용자 데이터가 없어 스케줄 생성을 건너뜁니다.');
+            debugPrint('사용자 데이터가 없어 스케줄 생성을 건너뜁니다.');
           }
         }
 
@@ -140,11 +152,11 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
           );
           await StorageService.saveSettings(finalSettings);
           emit(SettingsLoadedState(finalSettings));
-          print('백엔드 동기화 완료: $event.time -> $finalReportTime');
+          debugPrint('백엔드 동기화 완료: ${event.time} -> $finalReportTime');
         }
       } catch (e) {
         // 백엔드 업데이트 실패 시 로그만 출력 (UI는 이미 업데이트됨)
-        print('백엔드 스케줄 업데이트 실패: $e');
+        debugPrint('백엔드 스케줄 업데이트 실패: $e');
         // 백엔드 실패 시에도 최신 상태를 확인해보기
         try {
           final currentSchedule = await _apiService.getMySchedule();
@@ -156,10 +168,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
             );
             await StorageService.saveSettings(correctedSettings);
             emit(SettingsLoadedState(correctedSettings));
-            print('백엔드에서 현재 스케줄로 수정: $event.time -> $finalReportTime');
+            debugPrint('백엔드에서 현재 스케줄로 수정: ${event.time} -> $finalReportTime');
           }
         } catch (fetchError) {
-          print('백엔드 스케줄 조회도 실패: $fetchError');
+          debugPrint('백엔드 스케줄 조회도 실패: $fetchError');
         }
       }
     } catch (e) {
@@ -191,10 +203,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
           // 스케줄이 있으면 삭제하여 사용자가 새로 설정하도록 함
           // 현재 API에 삭제 기능이 없다면 주석 처리
           // await _apiService.deleteMySchedule();
-          print('백엔드 스케줄이 존재하지만 삭제 API가 없어 유지됩니다');
+          debugPrint('백엔드 스케줄이 존재하지만 삭제 API가 없어 유지됩니다');
         }
       } catch (e) {
-        print('백엔드 스케줄 확인 실패: $e');
+        debugPrint('백엔드 스케줄 확인 실패: $e');
       }
 
       await StorageService.saveSettings(defaultSettings);

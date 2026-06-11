@@ -4,11 +4,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:async';
 import 'storage_service.dart';
+import 'auth_session_event.dart';
 import 'dart:convert';
 
 class DioClient {
-  // 이메일 인증 성공 콜백
-  static Function(String message)? onEmailVerificationSuccess;
+  // 인증 세션 이벤트 스트림 (이메일 인증 완료, 세션 만료 등)
+  final StreamController<AuthSessionEvent> _authEventController =
+      StreamController<AuthSessionEvent>.broadcast();
+
+  /// 앱 레벨에서 구독하여 AuthBloc 이벤트로 변환한다
+  Stream<AuthSessionEvent> get authEvents => _authEventController.stream;
 
   // .env 파일에서 API_URL을 가져오고, 없으면 fallback URL 사용
   static String get baseUrl {
@@ -313,10 +318,9 @@ class DioClient {
   Future<void> _handleEmailVerificationSuccess() async {
     debugPrint('이메일 인증 성공 - 로그아웃 처리 예정');
 
-    // 콜백을 통해 이메일 인증 성공 알림
-    if (DioClient.onEmailVerificationSuccess != null) {
-      DioClient.onEmailVerificationSuccess!('이메일 인증이 완료되었습니다. 다시 로그인해주세요.');
-    }
+    _authEventController.add(
+      const EmailVerificationCompleted('이메일 인증이 완료되었습니다. 다시 로그인해주세요.'),
+    );
   }
 
   /// Refresh token 만료 시 처리
@@ -328,8 +332,8 @@ class DioClient {
     await StorageService.deleteRefreshToken();
     await StorageService.deleteUserData();
 
-    // TODO: 로그아웃 이벤트 발생 (BLoC 등으로 알림)
-    // 예: AuthBloc.add(LogoutEvent());
+    // 앱 레벨에 세션 만료 알림 (AuthBloc이 로그아웃 상태로 전환)
+    _authEventController.add(const SessionExpired());
   }
 
   // GET 요청
