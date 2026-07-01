@@ -1,6 +1,6 @@
 from typing import Optional
-from data.schemas import PortfolioCreate, UserCreate, UserOut
-from repo import UserRepo, PortfolioRepo
+from data.schemas import PortfolioCreate, ScheduleCreate, UserCreate, UserOut
+from repo import UserRepo, PortfolioRepo, ScheduleRepo
 from data.models import User
 from supabase import Client
 import asyncio
@@ -8,6 +8,10 @@ import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
+
+# 회원가입 시 자동 생성되는 기본 보고서 스케줄 시각 (유저 로컬 timezone 기준)
+DEFAULT_REPORT_HOUR = 9
+DEFAULT_REPORT_MINUTE = 0
 
 
 class EmailNotVerifiedException(Exception):
@@ -22,15 +26,25 @@ class UserUsecase:
     Repository 패턴을 사용하여 데이터 접근을 캡슐화합니다.
     """
 
-    def __init__(self, user_repo: UserRepo, portfolio_repo: PortfolioRepo, supabase_client: Client):
+    def __init__(
+        self,
+        user_repo: UserRepo,
+        portfolio_repo: PortfolioRepo,
+        schedule_repo: ScheduleRepo,
+        supabase_client: Client,
+    ):
         """
         UserUsecase 초기화
 
         Args:
             user_repo: UserRepo 인스턴스 (의존성 주입용)
+            portfolio_repo: PortfolioRepo 인스턴스 (회원가입 시 기본 포트폴리오 생성용)
+            schedule_repo: ScheduleRepo 인스턴스 (회원가입 시 기본 스케줄 생성용)
+            supabase_client: Supabase 클라이언트 (Auth 연동용)
         """
         self.user_repo = user_repo
         self.portfolio_repo = portfolio_repo
+        self.schedule_repo = schedule_repo
         self.supabase_client = supabase_client
 
     def get_user_profile(self, user_id: int) -> Optional[User]:
@@ -132,6 +146,25 @@ class UserUsecase:
             except Exception as portfolio_error:
                 logger.error(f"포트폴리오 생성 중 오류 발생: user_id={user.id}, error={portfolio_error}")
                 # 포트폴리오 생성 실패해도 사용자는 반환 (나중에 수동으로 생성 가능)
+
+            # 기본 보고서 스케줄 생성 (매일 09:00, 유저 timezone)
+            try:
+                schedule = await self.schedule_repo.create(
+                    schema=ScheduleCreate(
+                        user_id=user.id,
+                        hour=DEFAULT_REPORT_HOUR,
+                        minute=DEFAULT_REPORT_MINUTE,
+                        timezone=timezone,
+                        enabled=True,
+                    )
+                )
+                if schedule:
+                    logger.info(f"기본 스케줄 생성 완료: user_id={user.id}, schedule_id={schedule.id}")
+                else:
+                    logger.warning(f"기본 스케줄 생성 실패: user_id={user.id} - schedule_repo.create returned None")
+            except Exception as schedule_error:
+                logger.error(f"기본 스케줄 생성 중 오류 발생: user_id={user.id}, error={schedule_error}")
+                # 스케줄 생성 실패해도 사용자는 반환 (나중에 설정 화면에서 생성 가능)
 
             return user
 

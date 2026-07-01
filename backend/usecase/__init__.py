@@ -17,8 +17,9 @@ def get_user_usecase() -> UserUsecase:
     """
     user_repo = get_user_repo()
     portfolio_repo = get_portfolio_repo()
+    schedule_repo = get_schedule_repo()
     supabase_client = get_supabase_client()
-    return UserUsecase(user_repo, portfolio_repo, supabase_client)
+    return UserUsecase(user_repo, portfolio_repo, schedule_repo, supabase_client)
 
 
 def get_portfolio_usecase() -> PortfolioUsecase:

@@ -9,8 +9,9 @@ from pydantic import ValidationError
 from usecase.user_usecase import UserUsecase, EmailNotVerifiedException
 from repo.user_repo import UserRepo
 from repo.portfolio_repo import PortfolioRepo
+from repo.schedule_repo import ScheduleRepo
 from data.models import User
-from data.schemas import UserCreate, UserOut, PortfolioOut, PortfolioCreate
+from data.schemas import UserCreate, UserOut, PortfolioOut, PortfolioCreate, ScheduleCreate
 from tests.fixtures.mock_data import MockDataGenerator
 
 
@@ -29,14 +30,19 @@ class TestUserUsecase:
         return MagicMock(spec=PortfolioRepo)
 
     @pytest.fixture
+    def mock_schedule_repo(self):
+        """Mock ScheduleRepo (async 메서드는 spec 덕분에 자동으로 AsyncMock이 됨)"""
+        return MagicMock(spec=ScheduleRepo)
+
+    @pytest.fixture
     def mock_supabase_client(self):
         """Mock Supabase 클라이언트 (auth 속성 접근을 위해 spec 없이 생성)"""
         return MagicMock()
 
     @pytest.fixture
-    def user_usecase(self, mock_user_repo, mock_portfolio_repo, mock_supabase_client):
+    def user_usecase(self, mock_user_repo, mock_portfolio_repo, mock_schedule_repo, mock_supabase_client):
         """UserUsecase 인스턴스"""
-        return UserUsecase(mock_user_repo, mock_portfolio_repo, mock_supabase_client)
+        return UserUsecase(mock_user_repo, mock_portfolio_repo, mock_schedule_repo, mock_supabase_client)
 
     @pytest.fixture
     def sample_user(self):
@@ -68,12 +74,15 @@ class TestUserUsecase:
 
     # ============= 초기화 =============
 
-    def test_user_usecase_initialization(self, mock_user_repo, mock_portfolio_repo, mock_supabase_client):
+    def test_user_usecase_initialization(
+        self, mock_user_repo, mock_portfolio_repo, mock_schedule_repo, mock_supabase_client
+    ):
         """UserUsecase 초기화 테스트"""
-        usecase = UserUsecase(mock_user_repo, mock_portfolio_repo, mock_supabase_client)
+        usecase = UserUsecase(mock_user_repo, mock_portfolio_repo, mock_schedule_repo, mock_supabase_client)
 
         assert usecase.user_repo == mock_user_repo
         assert usecase.portfolio_repo == mock_portfolio_repo
+        assert usecase.schedule_repo == mock_schedule_repo
         assert usecase.supabase_client == mock_supabase_client
 
     # ============= get_user_profile =============
@@ -161,15 +170,18 @@ class TestUserUsecase:
         # 결과 검증
         assert result == sample_user_out
 
-    async def test_register_user_create_failure(self, user_usecase, mock_user_repo, mock_portfolio_repo):
+    async def test_register_user_create_failure(
+        self, user_usecase, mock_user_repo, mock_portfolio_repo, mock_schedule_repo
+    ):
         """사용자 등록 실패 테스트 (user_repo.create가 None 반환)"""
         mock_user_repo.create.return_value = None
 
         result = await user_usecase.register_user(email="test@example.com", password="password123")
 
-        # 호출 검증: 사용자 생성 실패 시 포트폴리오 생성 안함
+        # 호출 검증: 사용자 생성 실패 시 포트폴리오/스케줄 생성 안함
         mock_user_repo.create.assert_called_once()
         mock_portfolio_repo.create.assert_not_called()
+        mock_schedule_repo.create.assert_not_called()
 
         # 결과 검증
         assert result is None
@@ -184,6 +196,42 @@ class TestUserUsecase:
         result = await user_usecase.register_user(email="test@example.com", password="password123")
 
         # 결과 검증 (포트폴리오 생성 실패해도 사용자 반환)
+        assert result == sample_user_out
+
+    async def test_register_user_creates_default_schedule(
+        self, user_usecase, mock_user_repo, mock_portfolio_repo, mock_schedule_repo, sample_user_out
+    ):
+        """회원가입 시 기본 보고서 스케줄(09:00, 유저 timezone, enabled)이 생성되는 테스트"""
+        mock_user_repo.create.return_value = sample_user_out
+
+        result = await user_usecase.register_user(
+            email="test@example.com", password="password123", timezone="Asia/Seoul", language="ko"
+        )
+
+        # 호출 검증: 기본 스케줄 생성 (매일 09:00, 요청 timezone, 활성)
+        mock_schedule_repo.create.assert_awaited_once_with(
+            schema=ScheduleCreate(
+                user_id=sample_user_out.id,
+                hour=9,
+                minute=0,
+                timezone="Asia/Seoul",
+                enabled=True,
+            )
+        )
+
+        # 결과 검증
+        assert result == sample_user_out
+
+    async def test_register_user_schedule_failure_still_returns_user(
+        self, user_usecase, mock_user_repo, mock_portfolio_repo, mock_schedule_repo, sample_user_out
+    ):
+        """기본 스케줄 생성 실패해도 사용자는 반환하는 테스트"""
+        mock_user_repo.create.return_value = sample_user_out
+        mock_schedule_repo.create.side_effect = Exception("Schedule creation error")
+
+        result = await user_usecase.register_user(email="test@example.com", password="password123")
+
+        # 결과 검증 (스케줄 생성 실패해도 사용자 반환)
         assert result == sample_user_out
 
     async def test_register_user_exception_returns_none(self, user_usecase, mock_user_repo):
