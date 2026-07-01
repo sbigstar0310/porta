@@ -7,6 +7,18 @@ import 'storage_service.dart';
 import 'auth_session_event.dart';
 import 'dart:convert';
 
+/// 토큰 갱신 결과 분류
+/// - success: 갱신 성공 (새 액세스 토큰 발급)
+/// - invalidSession: 리프레시 토큰이 확정적으로 무효(401/4xx) 또는 없음 → 재로그인 필요
+/// - transient: 일시적 실패(500·타임아웃·네트워크) → 세션 유지, 다음에 재시도
+enum RefreshOutcome { success, invalidSession, transient }
+
+class RefreshResult {
+  final RefreshOutcome outcome;
+  final String? token;
+  const RefreshResult(this.outcome, [this.token]);
+}
+
 class DioClient {
   // 인증 세션 이벤트 스트림 (이메일 인증 완료, 세션 만료 등)
   final StreamController<AuthSessionEvent> _authEventController =
@@ -47,7 +59,7 @@ class DioClient {
 
   // 토큰 갱신 관련 필드들
   bool _isRefreshing = false;
-  Completer<String?>? _refreshCompleter;
+  Completer<RefreshResult>? _refreshCompleter;
 
   // 싱글톤 패턴 구현
   static final DioClient _instance = DioClient._internal();
@@ -135,33 +147,57 @@ class DioClient {
 
     try {
       // 토큰 갱신 시도
-      final newToken = await _refreshAccessToken();
+      final result = await _refreshAccessToken();
 
-      if (newToken != null) {
-        // 새 토큰으로 원래 요청 재시도
-        await _retryRequestWithNewToken(requestOptions, newToken, handler);
-      } else {
-        // 토큰 갱신 실패 시 로그아웃 처리
-        await _handleRefreshTokenExpired();
-        handler.next(error);
+      switch (result.outcome) {
+        case RefreshOutcome.success:
+          // 새 토큰으로 원래 요청 재시도
+          await _retryRequestWithNewToken(requestOptions, result.token!, handler);
+          return;
+        case RefreshOutcome.transient:
+          // 일시적 실패(500·네트워크 등) → 세션 유지, 원 요청만 실패 처리(다음에 재시도됨)
+          debugPrint('토큰 갱신 일시 실패 - 세션 유지, 원 요청 실패 처리');
+          handler.next(error);
+          return;
+        case RefreshOutcome.invalidSession:
+          // 회전 레이스 복구: 다른 탭/흐름이 이미 갱신해 저장소 토큰이 바뀌었으면 그 토큰으로 1회 재시도
+          final currentToken = await StorageService.getAuthToken();
+          final attempted = requestOptions.headers['Authorization'];
+          if (currentToken != null &&
+              currentToken.isNotEmpty &&
+              currentToken != 'dummy_token' &&
+              'Bearer $currentToken' != attempted) {
+            debugPrint('저장소 토큰이 갱신됨(다른 흐름) - 새 토큰으로 재시도');
+            await _retryRequestWithNewToken(requestOptions, currentToken, handler);
+            return;
+          }
+          // 확정적으로 무효한 세션 → 로그아웃 + 재로그인 유도
+          await _handleRefreshTokenExpired();
+          handler.next(error);
+          return;
       }
     } catch (e) {
-      // 토큰 갱신 중 오류 발생
-      debugPrint('토큰 갱신 중 오류 발생: $e');
-      await _handleRefreshTokenExpired();
+      // 예기치 못한 오류: 세션을 지우지 않고(불필요한 로그아웃 방지) 원 요청만 실패 처리
+      debugPrint('토큰 갱신 처리 중 예기치 못한 오류(세션 유지): $e');
       handler.next(error);
     }
   }
 
-  /// 토큰 갱신 처리 (중복 요청 방지)
-  Future<String?> _refreshAccessToken() async {
-    // 이미 갱신 중이면 대기
+  /// 토큰 갱신 처리 (중복 요청 방지, single-flight)
+  ///
+  /// 실패를 확정 무효(invalidSession)와 일시 오류(transient)로 구분한다.
+  /// - 4xx (백엔드가 무효 리프레시 토큰에 반환하는 401 포함) 또는 리프레시 토큰 없음 → invalidSession
+  /// - 5xx · 타임아웃 · 네트워크(응답 없음) → transient (세션 유지)
+  Future<RefreshResult> _refreshAccessToken() async {
+    // 이미 갱신 중이면 그 결과를 공유 (탭 내 동시 401을 한 번의 갱신으로 합침)
     if (_isRefreshing) {
-      return await _refreshCompleter?.future;
+      return await _refreshCompleter?.future ??
+          const RefreshResult(RefreshOutcome.transient);
     }
 
     _isRefreshing = true;
-    _refreshCompleter = Completer<String?>();
+    final completer = Completer<RefreshResult>();
+    _refreshCompleter = completer;
 
     try {
       final refreshToken = await StorageService.getRefreshToken();
@@ -169,9 +205,8 @@ class DioClient {
       if (refreshToken == null ||
           refreshToken.isEmpty ||
           refreshToken == 'dummy_token') {
-        debugPrint('유효하지 않은 refresh token');
-        _refreshCompleter!.complete(null);
-        return null;
+        debugPrint('유효하지 않은 refresh token - 세션 무효');
+        return _complete(completer, const RefreshResult(RefreshOutcome.invalidSession));
       }
 
       debugPrint('토큰 갱신 시도 중...');
@@ -191,29 +226,49 @@ class DioClient {
         final newRefreshToken = responseData['refresh_token'];
 
         if (newAccessToken != null) {
-          // 새 토큰들 저장
+          // 새 토큰들 저장 (리프레시 토큰 회전 반영)
           await StorageService.saveAuthToken(newAccessToken);
           if (newRefreshToken != null) {
             await StorageService.saveRefreshToken(newRefreshToken);
           }
 
           debugPrint('토큰 갱신 성공');
-          _refreshCompleter!.complete(newAccessToken);
-          return newAccessToken;
+          return _complete(
+            completer,
+            RefreshResult(RefreshOutcome.success, newAccessToken),
+          );
         }
       }
 
+      // 200인데 토큰이 없는 비정상 응답 → 일시 오류로 취급(세션 유지)
       debugPrint('토큰 갱신 실패: 응답 데이터 오류');
-      _refreshCompleter!.complete(null);
-      return null;
+      return _complete(completer, const RefreshResult(RefreshOutcome.transient));
+    } on DioException catch (e) {
+      final statusCode = e.response?.statusCode;
+      // 4xx(401 INVALID_REFRESH_TOKEN 등): 리프레시 토큰 확정 무효 → 재로그인
+      if (statusCode != null && statusCode >= 400 && statusCode < 500) {
+        debugPrint('토큰 갱신 확정 실패(status=$statusCode) - 세션 무효');
+        return _complete(completer, const RefreshResult(RefreshOutcome.invalidSession));
+      }
+      // 5xx · 타임아웃 · 응답 없음(네트워크): 일시 오류 → 세션 유지
+      debugPrint('토큰 갱신 일시 실패(status=$statusCode, type=${e.type})');
+      return _complete(completer, const RefreshResult(RefreshOutcome.transient));
     } catch (e) {
-      debugPrint('토큰 갱신 요청 실패: $e');
-      _refreshCompleter!.complete(null);
-      return null;
+      // 예기치 못한 오류: 세션을 지우지 않도록 일시 오류로 취급
+      debugPrint('토큰 갱신 요청 예외(일시 취급): $e');
+      return _complete(completer, const RefreshResult(RefreshOutcome.transient));
     } finally {
       _isRefreshing = false;
       _refreshCompleter = null;
     }
+  }
+
+  /// completer를 완료시키고 같은 결과를 반환하는 헬퍼 (single-flight 대기자에게 전파)
+  RefreshResult _complete(Completer<RefreshResult> completer, RefreshResult result) {
+    if (!completer.isCompleted) {
+      completer.complete(result);
+    }
+    return result;
   }
 
   /// 새 토큰으로 원래 요청 재시도

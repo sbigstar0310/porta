@@ -59,13 +59,8 @@ class ApiService {
     throw Exception('현재 사용자 정보를 찾을 수 없습니다');
   }
 
-  Future<User> refreshSession(String refreshToken) async {
-    final response = await _dioClient.postForm(
-      '/auth/refresh',
-      data: {'refresh_token': refreshToken},
-    );
-    return User.fromJson(response.data);
-  }
+  // 참고: 토큰 갱신은 DioClient 인터셉터(_refreshAccessToken)가 401 발생 시 자동 처리한다.
+  // 별도의 수동 refreshSession 경로는 갱신 레이스를 유발할 수 있어 제거함.
 
   // Portfolio endpoints
   Future<Portfolio> getPortfolio() async {

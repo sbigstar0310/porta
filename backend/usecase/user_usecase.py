@@ -3,6 +3,7 @@ from data.schemas import PortfolioCreate, ScheduleCreate, UserCreate, UserOut
 from repo import UserRepo, PortfolioRepo, ScheduleRepo
 from data.models import User
 from supabase import Client
+from supabase_auth.errors import AuthApiError
 import asyncio
 
 import logging
@@ -16,6 +17,12 @@ DEFAULT_REPORT_MINUTE = 0
 
 class EmailNotVerifiedException(Exception):
     """이메일 미인증 예외"""
+
+    pass
+
+
+class InvalidRefreshTokenException(Exception):
+    """무효/만료/이미 사용된 리프레시 토큰 예외 (클라이언트 인증 실패 → HTTP 401)"""
 
     pass
 
@@ -332,6 +339,13 @@ class UserUsecase:
             if not auth_response.user:
                 logger.error(f"Supabase 인증 실패: 사용자 정보 없음 (refresh_token: {refresh_token})")
                 raise Exception("계정 정보를 찾을 수 없습니다. 고객센터에 문의해주세요.")
+        except AuthApiError as e:
+            # 무효/만료/이미 사용된 리프레시 토큰 → 클라이언트 인증 실패(401)로 매핑
+            logger.warning(
+                f"리프레시 토큰 무효/만료: status={getattr(e, 'status', None)}, "
+                f"code={getattr(e, 'code', None)}, msg={e}"
+            )
+            raise InvalidRefreshTokenException(str(e))
         except Exception as e:
             logger.error(f"Supabase 인증 실패: {e}")
             raise
