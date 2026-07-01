@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form
 from usecase import UserUsecase, get_user_usecase
-from usecase.user_usecase import EmailNotVerifiedException
+from usecase.user_usecase import EmailNotVerifiedException, InvalidRefreshTokenException
 from data.schemas import UserOut
 from datetime import datetime
 import logging
@@ -66,6 +66,11 @@ def refresh_token(
         if not user:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="리프레시 세션 갱신에 실패했습니다.")
         return user
+    except InvalidRefreshTokenException as e:
+        logger.warning(f"리프레시 토큰 무효/만료 갱신 시도: {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_REFRESH_TOKEN")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error refreshing session: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error refreshing session: {e}")

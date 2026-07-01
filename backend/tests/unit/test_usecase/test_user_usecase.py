@@ -6,7 +6,8 @@ import pytest
 from unittest.mock import MagicMock, patch
 from pydantic import ValidationError
 
-from usecase.user_usecase import UserUsecase, EmailNotVerifiedException
+from usecase.user_usecase import UserUsecase, EmailNotVerifiedException, InvalidRefreshTokenException
+from supabase_auth.errors import AuthApiError
 from repo.user_repo import UserRepo
 from repo.portfolio_repo import PortfolioRepo
 from repo.schedule_repo import ScheduleRepo
@@ -463,12 +464,28 @@ class TestUserUsecase:
         assert result.access_token == "test-access-token"
         assert result.refresh_token == "test-refresh-token"
 
-    def test_refresh_session_auth_failure_raises(self, user_usecase, mock_supabase_client):
-        """리프레시 세션 인증 실패 시 예외가 전파되는 테스트"""
-        mock_supabase_client.auth.refresh_session.side_effect = Exception("Invalid refresh token")
+    def test_refresh_session_invalid_token_raises_custom(self, user_usecase, mock_supabase_client):
+        """무효/이미 사용된 리프레시 토큰(AuthApiError) → InvalidRefreshTokenException (라우터에서 401)"""
+        mock_supabase_client.auth.refresh_session.side_effect = AuthApiError(
+            "Invalid Refresh Token: Already Used", 400, "refresh_token_already_used"
+        )
 
-        with pytest.raises(Exception, match="Invalid refresh token"):
-            user_usecase.refresh_session("invalid-token")
+        with pytest.raises(InvalidRefreshTokenException):
+            user_usecase.refresh_session("already-used-token")
+
+    def test_refresh_session_non_auth_error_propagates(self, user_usecase, mock_supabase_client):
+        """AuthApiError가 아닌 오류(네트워크 등)는 그대로 전파 → 라우터에서 500"""
+        mock_supabase_client.auth.refresh_session.side_effect = Exception("Network unreachable")
+
+        with pytest.raises(Exception, match="Network unreachable"):
+            user_usecase.refresh_session("some-token")
+        # InvalidRefreshTokenException으로 잘못 변환되지 않아야 함
+        try:
+            user_usecase.refresh_session("some-token")
+        except InvalidRefreshTokenException:
+            pytest.fail("일반 오류가 InvalidRefreshTokenException으로 잘못 변환됨")
+        except Exception:
+            pass
 
     def test_refresh_session_db_user_not_found_returns_none(
         self, user_usecase, mock_user_repo, mock_supabase_client, mock_auth_response
